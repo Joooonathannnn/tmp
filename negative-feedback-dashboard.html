@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>负反馈轨迹统计分析</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #132238;
+      --muted: #61708a;
+      --line: #dce3ed;
+      --surface: #ffffff;
+      --canvas: #f2f5f9;
+      --navy: #142943;
+      --blue: #2f6fed;
+      --blue-soft: #eaf1ff;
+      --cyan: #16a3b6;
+      --orange: #ed8a36;
+      --red: #d94b55;
+      --green: #2c9b73;
+      --shadow: 0 14px 40px rgba(32, 54, 86, .08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--canvas); }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(47, 111, 237, .08), transparent 24rem),
+        var(--canvas);
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .app-shell { width: min(1440px, 100%); margin: 0 auto; padding: 24px; }
+    .hero {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 26px 30px;
+      color: #fff;
+      border-radius: 20px;
+      background:
+        linear-gradient(125deg, rgba(39, 94, 162, .9), rgba(18, 39, 65, .98)),
+        var(--navy);
+      box-shadow: 0 18px 48px rgba(20, 41, 67, .18);
+    }
+    .hero-eyebrow { margin: 0 0 8px; color: #9fc3ff; font-size: 13px; letter-spacing: .12em; }
+    .hero h1 { margin: 0; font-size: clamp(24px, 3vw, 34px); font-weight: 600; }
+    .hero-subtitle { margin: 10px 0 0; color: #cbd7e8; font-size: 14px; }
+    .dataset-meta { text-align: right; color: #cbd7e8; font-size: 13px; }
+    .dataset-meta strong { display: block; margin-bottom: 6px; color: #fff; font-size: 15px; font-weight: 500; }
+    .hero-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .hero-button {
+      min-height: 36px;
+      padding: 8px 12px;
+      color: #f4f8ff;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .08);
+    }
+    .hero-button:hover { background: rgba(255, 255, 255, .16); }
+    .hero-button.primary { color: #153154; border-color: #fff; background: #fff; }
+    .file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin: 18px 0;
+    }
+    .summary-card {
+      position: relative;
+      overflow: hidden;
+      min-height: 126px;
+      padding: 20px 22px;
+      border: 1px solid rgba(220, 227, 237, .9);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .summary-card::after {
+      content: "";
+      position: absolute;
+      right: -28px;
+      bottom: -38px;
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: var(--tone, var(--blue));
+      opacity: .08;
+    }
+    .summary-label { margin: 0; color: var(--muted); font-size: 13px; }
+    .summary-value { margin: 9px 0 2px; font-size: 34px; line-height: 1; font-weight: 600; }
+    .summary-note { color: var(--muted); font-size: 12px; }
+    .summary-card:nth-child(2) { --tone: var(--cyan); }
+    .summary-card:nth-child(3) { --tone: var(--orange); }
+    .summary-card:nth-child(4) { --tone: var(--green); }
+
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px 0;
+    }
+    .panel-title { margin: 0; font-size: 16px; font-weight: 600; }
+    .panel-caption { color: var(--muted); font-size: 12px; }
+    .chart-wrap { min-height: 245px; padding: 10px 14px 14px; }
+    .chart-wrap svg { display: block; width: 100%; height: 220px; overflow: visible; }
+    .chart-empty { display: grid; place-items: center; height: 220px; color: var(--muted); font-size: 13px; }
+
+    .filters-panel { margin-bottom: 18px; padding: 18px 20px; }
+    .filter-grid {
+      display: grid;
+      grid-template-columns: minmax(200px, 1.5fr) repeat(5, minmax(130px, 1fr)) auto;
+      gap: 12px;
+      align-items: end;
+    }
+    .field { min-width: 0; }
+    .field label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px; }
+    .field input, .field select {
+      width: 100%;
+      height: 40px;
+      padding: 0 11px;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+      background: #fff;
+    }
+    .field input:focus, .field select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47, 111, 237, .12); }
+    .button-secondary {
+      height: 40px;
+      padding: 0 16px;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .button-secondary:hover { border-color: #aebbd0; background: #f8fafc; }
+
+    .table-panel { overflow: hidden; }
+    .table-meta { color: var(--muted); font-size: 13px; }
+    .table-wrap { overflow-x: auto; margin-top: 14px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 13px 16px; text-align: left; border-top: 1px solid #edf0f5; vertical-align: middle; }
+    th { color: var(--muted); background: #fafbfd; font-size: 12px; font-weight: 500; }
+    td { font-size: 13px; }
+    tbody tr { transition: background .15s ease; }
+    tbody tr:hover { background: #f7faff; }
+    .cell-time { width: 156px; color: var(--muted); }
+    .cell-feedback { width: 28%; }
+    .cell-feedback strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .cell-feedback small { display: block; margin-top: 4px; color: var(--muted); }
+    .cell-cause { width: 21%; }
+    .cell-project { width: 18%; }
+    .cell-action { width: 88px; text-align: right; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      color: #315ca8;
+      background: var(--blue-soft);
+      font-size: 12px;
+    }
+    .tag-refined { color: #217455; background: #e5f6ef; }
+    .tag-raw { color: #7a6041; background: #f5efe6; }
+    .link-button { padding: 6px 0; color: var(--blue); border: 0; background: transparent; }
+    .link-button:hover { text-decoration: underline; }
+    .empty-state { display: none; padding: 54px 24px; color: var(--muted); text-align: center; }
+    .empty-state.visible { display: block; }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      min-height: 64px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--line);
+    }
+    .pagination button { height: 34px; padding: 0 13px; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+    .pagination button:disabled { cursor: not-allowed; opacity: .45; }
+    .page-info { min-width: 74px; color: var(--muted); font-size: 12px; text-align: center; }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 20;
+      max-width: min(420px, calc(100vw - 48px));
+      padding: 13px 16px;
+      color: #fff;
+      border-radius: 12px;
+      background: var(--navy);
+      box-shadow: 0 14px 38px rgba(18, 39, 65, .25);
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+    }
+    .toast.visible { transform: translateY(0); opacity: 1; }
+    .toast.error { background: #9e3039; }
+
+    dialog {
+      width: min(720px, calc(100vw - 32px));
+      max-height: calc(100vh - 40px);
+      padding: 0;
+      color: var(--ink);
+      border: 0;
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: 0 30px 80px rgba(11, 28, 50, .3);
+    }
+    dialog::backdrop { background: rgba(11, 28, 50, .48); backdrop-filter: blur(3px); }
+    .dialog-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 24px;
+      color: #fff;
+      background: var(--navy);
+    }
+    .dialog-header h2 { margin: 0 0 6px; font-size: 19px; font-weight: 600; }
+    .dialog-header p { margin: 0; color: #cbd7e8; font-size: 12px; }
+    .dialog-close { width: 34px; height: 34px; color: #fff; border: 1px solid rgba(255,255,255,.25); border-radius: 9px; background: transparent; font-size: 20px; }
+    .dialog-body { padding: 22px 24px 28px; overflow-y: auto; }
+    .detail-block { padding: 17px 0; border-bottom: 1px solid var(--line); }
+    .detail-block:first-child { padding-top: 0; }
+    .detail-block:last-child { padding-bottom: 0; border-bottom: 0; }
+    .detail-block h3 { margin: 0 0 9px; color: var(--muted); font-size: 12px; font-weight: 500; }
+    .detail-block p { margin: 0; line-height: 1.75; font-size: 14px; }
+    .detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .detail-item { min-width: 0; padding: 12px; border-radius: 10px; background: #f6f8fb; }
+    .detail-item span { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; }
+    .detail-item strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: 500; }
+    .mapping-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+    .mapping-row { display: grid; grid-template-columns: minmax(90px, .7fr) 1.3fr; gap: 10px; padding: 10px 12px; border-radius: 9px; background: #f6f8fb; }
+    .mapping-row dt { color: var(--muted); font-size: 12px; }
+    .mapping-row dd { margin: 0; overflow-wrap: anywhere; font-family: Consolas, monospace; font-size: 12px; }
+
+    @media (max-width: 1120px) {
+      .analytics-grid { grid-template-columns: 1fr 1fr; }
+      .analytics-grid .panel:first-child { grid-column: 1 / -1; }
+      .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .app-shell { padding: 14px; }
+      .hero { align-items: flex-start; padding: 22px; }
+      .dataset-meta { display: none; }
+      .hero { flex-direction: column; }
+      .hero-actions { justify-content: flex-start; }
+      .summary-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .summary-card { min-height: 108px; padding: 16px; }
+      .summary-value { font-size: 28px; }
+      .analytics-grid { grid-template-columns: 1fr; gap: 12px; }
+      .analytics-grid .panel:first-child { grid-column: auto; }
+      .filter-grid { grid-template-columns: 1fr 1fr; }
+      .filter-grid .field:first-child { grid-column: 1 / -1; }
+      .cell-time { width: 128px; }
+      .cell-cause { width: 150px; }
+      .cell-project { width: 150px; }
+      .cell-feedback { width: 220px; }
+      .panel-header { padding: 16px 16px 0; }
+      .detail-grid, .mapping-list { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 430px) {
+      .summary-grid { grid-template-columns: 1fr; }
+      .summary-card { min-height: 92px; }
+      .filter-grid { grid-template-columns: 1fr; }
+      .filter-grid .field:first-child { grid-column: auto; }
+      .button-secondary { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell" id="app">
+    <header class="hero">
+      <div>
+        <p class="hero-eyebrow">NEGATIVE FEEDBACK INSIGHTS</p>
+        <h1>负反馈轨迹统计分析</h1>
+        <p class="hero-subtitle">从轨迹规模到根因定位，统一查看精筛结果与项目映射</p>
+      </div>
+      <div>
+        <div class="dataset-meta">
+          <strong id="dataset-name">示例数据集</strong>
+          <span id="dataset-time">更新时间：—</span>
+        </div>
+        <div class="hero-actions">
+          <input class="file-input" id="import-file" type="file" accept="application/json,.json">
+          <button class="hero-button primary" id="import-trigger" type="button">导入 JSON</button>
+          <button class="hero-button" id="download-template" type="button">下载模板</button>
+          <button class="hero-button" id="reset-sample" type="button">恢复示例</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="summary-grid" aria-label="核心统计">
+      <article class="summary-card">
+        <p class="summary-label">负反馈轨迹总量</p>
+        <p class="summary-value" data-testid="summary-total">0</p>
+        <span class="summary-note">平台收集的全部轨迹</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">覆盖天数</p>
+        <p class="summary-value" data-testid="summary-days">0</p>
+        <span class="summary-note">按自然日去重统计</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">精筛轨迹总量</p>
+        <p class="summary-value" data-testid="summary-refined">0</p>
+        <span class="summary-note">进入重点分析的数据</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">精筛比例</p>
+        <p class="summary-value" data-testid="summary-rate">0%</p>
+        <span class="summary-note">精筛量 ÷ 轨迹总量</span>
+      </article>
+    </section>
+
+    <section class="analytics-grid" aria-label="统计图表">
+      <article class="panel">
+        <header class="panel-header"><h2 class="panel-title">每日轨迹趋势</h2><span class="panel-caption">按当前筛选结果</span></header>
+        <div class="chart-wrap"><svg id="trend-chart" role="img" aria-label="每日负反馈轨迹数量趋势"></svg></div>
+      </article>
+      <article class="panel">
+        <header class="panel-header"><h2 class="panel-title">根因类别分布</h2><span class="panel-caption">Top 6</span></header>
+        <div class="chart-wrap"><svg id="root-cause-chart" role="img" aria-label="根因类别数量分布"></svg></div>
+      </article>
+      <article class="panel">
+        <header class="panel-header"><h2 class="panel-title">关联项目分布</h2><span class="panel-caption">Top 6</span></header>
+        <div class="chart-wrap"><svg id="project-chart" role="img" aria-label="关联项目数量分布"></svg></div>
+      </article>
+    </section>
+
+    <section class="panel filters-panel" aria-label="数据筛选">
+      <div class="filter-grid">
+        <div class="field"><label for="filter-keyword">关键词</label><input id="filter-keyword" type="search" placeholder="轨迹、根因、建议或项目"></div>
+        <div class="field"><label for="filter-date-from">开始日期</label><input id="filter-date-from" type="date"></div>
+        <div class="field"><label for="filter-date-to">结束日期</label><input id="filter-date-to" type="date"></div>
+        <div class="field"><label for="filter-refined">精筛状态</label><select id="filter-refined"><option value="">全部</option><option value="true">已精筛</option><option value="false">未精筛</option></select></div>
+        <div class="field"><label for="filter-category">根因类别</label><select id="filter-category"><option value="">全部类别</option></select></div>
+        <div class="field"><label for="filter-project">关联项目</label><select id="filter-project"><option value="">全部项目</option></select></div>
+        <button class="button-secondary" id="clear-filters" type="button">清空筛选</button>
+      </div>
+    </section>
+
+    <section class="panel table-panel" aria-label="负反馈轨迹列表">
+      <header class="panel-header">
+        <h2 class="panel-title">负反馈轨迹明细</h2>
+        <span class="table-meta" id="table-meta">共 0 条</span>
+      </header>
+      <div class="table-wrap">
+        <table id="trajectory-table">
+          <thead><tr><th class="cell-time">轨迹时间</th><th class="cell-feedback">负反馈</th><th class="cell-cause">根因类别</th><th>状态</th><th class="cell-project">关联项目</th><th class="cell-action">操作</th></tr></thead>
+          <tbody id="trajectory-body"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="empty-state">没有符合当前筛选条件的负反馈轨迹</div>
+      <nav class="pagination" id="pagination" aria-label="轨迹分页"></nav>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="detail-dialog" aria-labelledby="detail-title">
+    <header class="dialog-header">
+      <div><h2 id="detail-title">轨迹详情</h2><p id="detail-meta">—</p></div>
+      <button class="dialog-close" id="detail-close" type="button" aria-label="关闭详情">×</button>
+    </header>
+    <div class="dialog-body">
+      <section class="detail-block"><h3>负反馈内容</h3><p id="detail-feedback">—</p></section>
+      <section class="detail-block"><h3>根因分析</h3><p id="detail-root-cause">—</p></section>
+      <section class="detail-block"><h3>改进建议</h3><p id="detail-suggestion">—</p></section>
+      <section class="detail-block"><h3>唯一关联项目</h3><div class="detail-grid" id="detail-project"></div></section>
+      <section class="detail-block"><h3>项目数据映射</h3><dl class="mapping-list" id="detail-project-mapping"></dl></section>
+    </div>
+  </dialog>
+
+  <script id="dashboard-core">
+  (() => {
+    const requiredTextFields = [
+      'id', 'timestamp', 'feedbackSummary', 'feedbackContent',
+      'rootCauseCategory', 'rootCauseAnalysis', 'improvementSuggestion',
+    ];
+
+    function validateDataset(dataset) {
+      if (!dataset || typeof dataset !== 'object' || !Array.isArray(dataset.records)) {
+        throw new Error('数据顶层必须包含 records 数组');
+      }
+      dataset.records.forEach((record, index) => {
+        const label = record && record.id ? record.id : `第 ${index + 1} 条`;
+        if (!record || typeof record !== 'object') throw new Error(`${label}轨迹格式无效`);
+        requiredTextFields.forEach((field) => {
+          if (typeof record[field] !== 'string' || !record[field].trim()) {
+            throw new Error(`${label}缺少字段 ${field}`);
+          }
+        });
+        if (Number.isNaN(Date.parse(record.timestamp))) throw new Error(`${label}的时间格式无效`);
+        if (typeof record.refined !== 'boolean') throw new Error(`${label}的 refined 必须为布尔值`);
+        if (!record.project || typeof record.project !== 'object' || Array.isArray(record.project)) {
+          throw new Error(`${label}必须且只能关联一个项目对象`);
+        }
+        if (!record.project.id || !record.project.name) throw new Error(`${label}的项目缺少 id 或 name`);
+        if (!record.project.dataMapping || typeof record.project.dataMapping !== 'object' || Array.isArray(record.project.dataMapping)) {
+          throw new Error(`${label}的项目数据映射必须为对象`);
+        }
+      });
+      return dataset;
+    }
+
+    function computeSummary(records) {
+      const total = records.length;
+      const days = new Set(records.map((record) => record.timestamp.slice(0, 10))).size;
+      const refined = records.filter((record) => record.refined).length;
+      return { total, days, refined, refinedRate: total ? Number((refined * 100 / total).toFixed(1)) : 0 };
+    }
+
+    function filterRecords(records, filters = {}) {
+      const keyword = String(filters.keyword || '').trim().toLowerCase();
+      return records.filter((record) => {
+        const date = record.timestamp.slice(0, 10);
+        if (filters.dateFrom && date < filters.dateFrom) return false;
+        if (filters.dateTo && date > filters.dateTo) return false;
+        if (filters.refined && String(record.refined) !== String(filters.refined)) return false;
+        if (filters.category && record.rootCauseCategory !== filters.category) return false;
+        if (filters.project && record.project.id !== filters.project) return false;
+        if (keyword) {
+          const haystack = [
+            record.id, record.source, record.feedbackSummary, record.feedbackContent,
+            record.rootCauseCategory, record.rootCauseAnalysis, record.improvementSuggestion,
+            record.project.id, record.project.name, record.project.module,
+            JSON.stringify(record.project.dataMapping),
+          ].join(' ').toLowerCase();
+          if (!haystack.includes(keyword)) return false;
+        }
+        return true;
+      });
+    }
+
+    function aggregateByField(records, getter) {
+      const counts = new Map();
+      records.forEach((record) => {
+        const label = String(getter(record) || '未分类');
+        counts.set(label, (counts.get(label) || 0) + 1);
+      });
+      return Array.from(counts, ([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label, 'zh-CN'));
+    }
+
+    function aggregateByDate(records) {
+      return aggregateByField(records, (record) => record.timestamp.slice(0, 10))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    window.DashboardCore = { validateDataset, computeSummary, filterRecords, aggregateByDate, aggregateByField };
+  })();
+  </script>
+  <script>
+  (() => {
+    const { validateDataset, computeSummary, filterRecords, aggregateByDate, aggregateByField } = window.DashboardCore;
+    const sampleRecords = [
+      ['NF-001','2026-08-08T09:18:00+08:00','Android',true,'首页指标一直转圈','打开经营首页后核心指标持续加载，刷新仍无数据。','数据加载','高峰期聚合接口响应超过前端超时阈值，页面没有命中缓存。','为核心指标增加短时缓存和分级超时提示，并监控接口P95耗时。','P-001','经营分析看板','核心指标','数据产品组','2.4.0',{api:'/metrics/summary',event:'dashboard_open'}],
+      ['NF-002','2026-08-08T11:42:00+08:00','iOS',false,'筛选条件会被重置','从详情返回列表后，已选择的日期和部门筛选全部丢失。','交互体验','筛选状态只保存在列表组件内部，路由切换时组件被销毁。','将筛选条件同步到URL参数并在返回列表时恢复。','P-001','经营分析看板','筛选器','数据产品组','2.4.0',{page:'dashboard_list',route:'/dashboard'}],
+      ['NF-003','2026-08-09T08:35:00+08:00','Android',true,'昨日数据尚未更新','早晨查看日报时仍显示前一天的更新时间。','数据时效','上游定时任务因分区未就绪延迟执行，但前端没有展示数据状态。','增加分区就绪检测和延迟告警，同时在页面展示数据更新时间与状态。','P-002','指标数据平台','日报任务','数据工程组','3.1.2',{job:'daily_metric_etl',table:'ads_daily_metric'}],
+      ['NF-004','2026-08-09T14:10:00+08:00','H5',true,'提交按钮找不到','填写长表单后无法快速找到提交入口，需要反复滑到底部。','交互体验','操作按钮位于长页面底部且没有吸底操作区。','增加移动端吸底提交栏，并在校验失败时定位到首个错误字段。','P-003','移动任务中心','任务提交','体验设计组','1.9.0',{page:'task_submit',event:'submit_click'}],
+      ['NF-005','2026-08-10T10:25:00+08:00','iOS',false,'搜索结果与关键词无关','输入完整客户名称后，前几条结果仍是无关内容。','检索匹配','搜索排序过度依赖历史热度，精确名称匹配权重不足。','提升精确匹配和前缀匹配权重，补充无关结果率离线评测。','P-004','智能问数助手','全局搜索','算法应用组','0.8.5',{index:'customer_profile',queryField:'customer_name'}],
+      ['NF-006','2026-08-10T16:48:00+08:00','Android',true,'导出的金额与页面不一致','页面显示万元，导出文件中是原始元数值，容易误读。','口径一致性','导出服务未复用页面的单位换算和格式化配置。','将单位和精度配置下沉为共享口径，并在导出表头注明单位。','P-001','经营分析看板','数据导出','数据产品组','2.4.0',{api:'/export/report',field:'amount'}],
+      ['NF-007','2026-08-11T09:02:00+08:00','H5',true,'任务详情偶尔打不开','从消息通知进入任务详情时提示参数错误。','数据映射','通知消息使用外部任务号，详情接口要求内部主键，缺少转换。','在通知跳转前完成任务号映射，并为无效映射提供可追踪错误码。','P-003','移动任务中心','消息跳转','体验设计组','1.9.0',{sourceId:'external_task_no',targetId:'task_id'}],
+      ['NF-008','2026-08-11T13:36:00+08:00','iOS',false,'图表文字被截断','小屏手机上横轴部门名称只能显示前两个字。','适配问题','图表使用固定宽度和固定标签间距，没有按容器宽度调整。','增加响应式刻度密度、文本省略提示和横屏展示方案。','P-001','经营分析看板','趋势图','数据产品组','2.4.0',{chart:'department_trend',dimension:'department_name'}],
+      ['NF-009','2026-08-12T08:50:00+08:00','Android',true,'登录后仍反复跳回登录页','弱网环境登录成功后再次进入页面仍提示未登录。','状态同步','令牌写入与页面跳转并发执行，部分设备读取到旧状态。','登录完成后等待安全存储确认，再触发路由跳转并增加幂等校验。','P-003','移动任务中心','登录鉴权','体验设计组','1.9.0',{storage:'secure_token',route:'/login'}],
+      ['NF-010','2026-08-12T15:22:00+08:00','H5',true,'根因分析内容太笼统','同类问题均显示为“数据异常”，无法指导后续修复。','分析质量','根因标签粒度过粗，缺少模块、链路和责任环节字段。','细化根因分类体系，要求输出直接原因、影响链路和可执行改进项。','P-004','智能问数助手','结果分析','算法应用组','0.8.5',{field:'root_cause',taxonomy:'feedback_v2'}],
+      ['NF-011','2026-08-13T10:06:00+08:00','iOS',false,'项目名称映射错误','某条轨迹关联到了同名的历史项目。','数据映射','映射逻辑只使用项目名称，没有使用稳定项目ID和版本。','改为以项目ID为主键，并将名称仅作为展示字段；冲突时阻止入库。','P-002','指标数据平台','项目映射','数据工程组','3.1.2',{source:'feedback_project_id',target:'project.id'}],
+      ['NF-012','2026-08-13T17:30:00+08:00','Android',true,'列表翻页后重复展示','第二页出现了第一页已经看过的两条记录。','分页稳定性','分页查询缺少稳定的二级排序，相同时间记录顺序不固定。','使用时间和轨迹ID联合排序，并为翻页接口增加重复数据监控。','P-003','移动任务中心','轨迹列表','体验设计组','1.9.0',{api:'/traces',sort:'timestamp,id'}],
+    ];
+
+    const sampleDataset = {
+      datasetName: '负反馈轨迹示例数据',
+      generatedAt: '2026-08-14T09:00:00+08:00',
+      records: sampleRecords.map((row) => ({
+        id: row[0], timestamp: row[1], source: row[2], refined: row[3], feedbackSummary: row[4],
+        feedbackContent: row[5], rootCauseCategory: row[6], rootCauseAnalysis: row[7],
+        improvementSuggestion: row[8], project: { id: row[9], name: row[10], module: row[11], owner: row[12], version: row[13], dataMapping: row[14] },
+      })),
+    };
+
+    const state = { dataset: sampleDataset, filters: {}, page: 1, pageSize: 8 };
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char]));
+    const formatDateTime = (value) => new Intl.DateTimeFormat('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }).format(new Date(value));
+
+    function renderSummary(records) {
+      const summary = computeSummary(records);
+      $('[data-testid="summary-total"]').textContent = summary.total;
+      $('[data-testid="summary-days"]').textContent = summary.days;
+      $('[data-testid="summary-refined"]').textContent = summary.refined;
+      $('[data-testid="summary-rate"]').textContent = `${summary.refinedRate}%`;
+    }
+
+    function renderVerticalChart(svg, data) {
+      if (!data.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#61708a" font-size="13">暂无数据</text>'; return; }
+      const width = 620, height = 220, left = 38, right = 12, top = 18, bottom = 42;
+      const innerW = width - left - right, innerH = height - top - bottom;
+      const max = Math.max(...data.map((item) => item.value), 1);
+      const slot = innerW / data.length, barW = Math.min(34, slot * .56);
+      const grid = [0, .5, 1].map((ratio) => {
+        const y = top + innerH * (1 - ratio);
+        return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" stroke="#e7ebf1"/><text x="${left-8}" y="${y+4}" text-anchor="end" fill="#7a879b" font-size="11">${Math.round(max*ratio)}</text>`;
+      }).join('');
+      const bars = data.map((item, index) => {
+        const h = item.value / max * innerH, x = left + slot * index + (slot - barW) / 2, y = top + innerH - h;
+        const label = item.label.slice(5).replace('-', '/');
+        return `<g><rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="6" fill="#2f6fed"><title>${escapeHtml(item.label)}：${item.value}条</title></rect><text x="${x+barW/2}" y="${Math.max(12,y-6)}" text-anchor="middle" fill="#34445b" font-size="11">${item.value}</text><text x="${x+barW/2}" y="${height-15}" text-anchor="middle" fill="#7a879b" font-size="10">${escapeHtml(label)}</text></g>`;
+      }).join('');
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      svg.innerHTML = grid + bars;
+    }
+
+    function renderHorizontalChart(svg, data, color) {
+      const shown = data.slice(0, 6);
+      if (!shown.length) { svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#61708a" font-size="13">暂无数据</text>'; return; }
+      const width = 450, height = 220, left = 118, right = 34, top = 10;
+      const max = Math.max(...shown.map((item) => item.value), 1), rowH = 34, barH = 12;
+      const rows = shown.map((item, index) => {
+        const y = top + index * rowH, w = item.value / max * (width-left-right);
+        const label = item.label.length > 8 ? `${item.label.slice(0,8)}…` : item.label;
+        return `<g><text x="${left-10}" y="${y+15}" text-anchor="end" fill="#536178" font-size="11">${escapeHtml(label)}</text><rect x="${left}" y="${y+5}" width="${width-left-right}" height="${barH}" rx="6" fill="#edf1f6"/><rect x="${left}" y="${y+5}" width="${w}" height="${barH}" rx="6" fill="${color}"><title>${escapeHtml(item.label)}：${item.value}条</title></rect><text x="${Math.min(width-right+6,left+w+7)}" y="${y+15}" fill="#34445b" font-size="11">${item.value}</text></g>`;
+      }).join('');
+      svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      svg.innerHTML = rows;
+    }
+
+    function renderCharts(records) {
+      renderVerticalChart($('#trend-chart'), aggregateByDate(records));
+      renderHorizontalChart($('#root-cause-chart'), aggregateByField(records, (record) => record.rootCauseCategory), '#16a3b6');
+      renderHorizontalChart($('#project-chart'), aggregateByField(records, (record) => record.project.name), '#ed8a36');
+    }
+
+    function renderTable(records) {
+      const pageCount = Math.max(1, Math.ceil(records.length / state.pageSize));
+      state.page = Math.min(state.page, pageCount);
+      const start = (state.page - 1) * state.pageSize;
+      const pageRecords = records.slice(start, start + state.pageSize);
+      $('#trajectory-body').innerHTML = pageRecords.map((record) => `
+        <tr>
+          <td class="cell-time">${escapeHtml(formatDateTime(record.timestamp))}<br><small>${escapeHtml(record.source || '—')}</small></td>
+          <td class="cell-feedback"><strong>${escapeHtml(record.feedbackSummary)}</strong><small>${escapeHtml(record.id)}</small></td>
+          <td class="cell-cause"><span class="tag">${escapeHtml(record.rootCauseCategory)}</span></td>
+          <td><span class="tag ${record.refined ? 'tag-refined' : 'tag-raw'}">${record.refined ? '已精筛' : '未精筛'}</span></td>
+          <td class="cell-project">${escapeHtml(record.project.name)}<br><small>${escapeHtml(record.project.module || '—')}</small></td>
+          <td class="cell-action"><button class="link-button" type="button" data-record-id="${escapeHtml(record.id)}">查看</button></td>
+        </tr>`).join('');
+      $('#trajectory-table').style.display = records.length ? 'table' : 'none';
+      $('#empty-state').classList.toggle('visible', !records.length);
+      $('#table-meta').textContent = `当前 ${records.length} 条 / 全部 ${state.dataset.records.length} 条`;
+      $('#pagination').innerHTML = records.length ? `<button type="button" data-page="prev" ${state.page===1?'disabled':''}>上一页</button><span class="page-info">${state.page} / ${pageCount}</span><button type="button" data-page="next" ${state.page===pageCount?'disabled':''}>下一页</button>` : '';
+    }
+
+    function renderFilterOptions() {
+      const categories = aggregateByField(state.dataset.records, (record) => record.rootCauseCategory);
+      const projects = new Map(state.dataset.records.map((record) => [record.project.id, record.project.name]));
+      $('#filter-category').innerHTML = '<option value="">全部类别</option>' + categories.map((item) => `<option value="${escapeHtml(item.label)}">${escapeHtml(item.label)}</option>`).join('');
+      $('#filter-project').innerHTML = '<option value="">全部项目</option>' + Array.from(projects, ([id,name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join('');
+    }
+
+    function renderDashboard() {
+      const records = filterRecords(state.dataset.records, state.filters);
+      renderSummary(records);
+      renderCharts(records);
+      renderTable(records);
+      $('#dataset-name').textContent = state.dataset.datasetName || '未命名数据集';
+      $('#dataset-time').textContent = `更新时间：${state.dataset.generatedAt ? new Date(state.dataset.generatedAt).toLocaleString('zh-CN') : '—'}`;
+    }
+
+    function setDataset(dataset) {
+      state.dataset = validateDataset(dataset);
+      state.filters = {};
+      state.page = 1;
+      renderFilterOptions();
+      renderDashboard();
+    }
+
+    let toastTimer;
+    function showToast(message, type = 'success') {
+      const toast = $('#toast');
+      toast.textContent = message;
+      toast.className = `toast visible ${type === 'error' ? 'error' : ''}`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.className = 'toast'; }, 3600);
+    }
+
+    function showDetail(recordId) {
+      const record = state.dataset.records.find((item) => item.id === recordId);
+      if (!record) return;
+      $('#detail-title').textContent = record.feedbackSummary;
+      $('#detail-meta').textContent = `${record.id} · ${new Date(record.timestamp).toLocaleString('zh-CN')} · ${record.source || '未知来源'} · ${record.refined ? '已精筛' : '未精筛'}`;
+      $('#detail-feedback').textContent = record.feedbackContent;
+      $('#detail-root-cause').textContent = `${record.rootCauseCategory}：${record.rootCauseAnalysis}`;
+      $('#detail-suggestion').textContent = record.improvementSuggestion;
+      const fields = [['项目ID',record.project.id],['项目名称',record.project.name],['所属模块',record.project.module || '—'],['负责人',record.project.owner || '—'],['版本',record.project.version || '—']];
+      $('#detail-project').innerHTML = fields.map(([label,value]) => `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('');
+      const mappings = Object.entries(record.project.dataMapping);
+      $('#detail-project-mapping').innerHTML = mappings.length
+        ? mappings.map(([key,value]) => `<div class="mapping-row"><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === 'object' ? JSON.stringify(value) : value)}</dd></div>`).join('')
+        : '<div class="mapping-row"><dt>状态</dt><dd>暂无映射字段</dd></div>';
+      $('#detail-dialog').showModal();
+    }
+
+    const templateDataset = {
+      datasetName: '请填写数据集名称',
+      generatedAt: '2026-08-14T09:00:00+08:00',
+      records: [{
+        id: 'NF-001', timestamp: '2026-08-14T09:00:00+08:00', source: 'Android', refined: true,
+        feedbackSummary: '请填写负反馈摘要', feedbackContent: '请填写完整负反馈内容',
+        rootCauseCategory: '请填写根因类别', rootCauseAnalysis: '请填写根因分析',
+        improvementSuggestion: '请填写改进建议',
+        project: { id: 'P-001', name: '请填写项目名称', module: '请填写模块', owner: '请填写负责人', version: '1.0.0', dataMapping: { sourceField: 'targetField' } },
+      }],
+    };
+
+    function downloadJson(data, filename) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function readFilters() {
+      state.filters = {
+        keyword: $('#filter-keyword').value,
+        dateFrom: $('#filter-date-from').value,
+        dateTo: $('#filter-date-to').value,
+        refined: $('#filter-refined').value,
+        category: $('#filter-category').value,
+        project: $('#filter-project').value,
+      };
+      state.page = 1;
+      renderDashboard();
+    }
+
+    ['#filter-keyword','#filter-date-from','#filter-date-to','#filter-refined','#filter-category','#filter-project']
+      .forEach((selector) => $(selector).addEventListener('input', readFilters));
+    $('#clear-filters').addEventListener('click', () => {
+      $$('#filter-keyword, #filter-date-from, #filter-date-to, #filter-refined, #filter-category, #filter-project').forEach((input) => { input.value = ''; });
+      readFilters();
+    });
+    $('#pagination').addEventListener('click', (event) => {
+      const direction = event.target.dataset.page;
+      if (!direction) return;
+      state.page += direction === 'next' ? 1 : -1;
+      renderDashboard();
+    });
+    $('#trajectory-body').addEventListener('click', (event) => {
+      const button = event.target.closest('[data-record-id]');
+      if (button) showDetail(button.dataset.recordId);
+    });
+    $('#detail-close').addEventListener('click', () => $('#detail-dialog').close());
+    $('#detail-dialog').addEventListener('click', (event) => {
+      if (event.target === $('#detail-dialog')) $('#detail-dialog').close();
+    });
+    $('#import-trigger').addEventListener('click', () => $('#import-file').click());
+    $('#import-file').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const imported = JSON.parse(await file.text());
+        setDataset(imported);
+        showToast(`已导入 ${imported.records.length} 条轨迹`);
+      } catch (error) {
+        showToast(`导入失败：${error.message}`, 'error');
+      } finally {
+        event.target.value = '';
+      }
+    });
+    $('#download-template').addEventListener('click', () => downloadJson(templateDataset, '负反馈轨迹数据模板.json'));
+    $('#reset-sample').addEventListener('click', () => { setDataset(sampleDataset); showToast('已恢复示例数据'); });
+
+    window.setDataset = setDataset;
+    window.DashboardApp = { state, sampleDataset, templateDataset, renderDashboard, setDataset, showDetail };
+    setDataset(sampleDataset);
+  })();
+  </script>
+</body>
+</html>
