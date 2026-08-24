@@ -43,3 +43,4 @@ Java 17 + Tomcat 10.1
 ```
 
 因为后续开发管理员上传功能时，可以使用现代版本的 Spring Boot。如果软件源没有 Java 17，再根据查询结果选择 Java 11。先查询再安装，可以避免包名或版本不匹配。
+curl -v --connect-timeout 10 http://repo.huaweicloud.com/hce/2.0/os/x86_64/repodata/repomd.xml
