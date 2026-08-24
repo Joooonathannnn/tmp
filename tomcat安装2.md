@@ -1,41 +1,45 @@
-这说明服务器是 **EulerOS**，不是 openEuler。两者相近，但软件包工具和可用版本可能不同，所以先不要执行之前的 `dnf install`。
+环境已经明确：
 
-EulerOS不同版本的差异：
+- 系统：Huawei Cloud EulerOS 2.0
+- 架构：`x86_64`
+- 包管理器：`yum`、`dnf`都有
+- Java：尚未安装
+- 软件源：`base`、`updates`正常
 
-- EulerOS/HCE 1.x通常只支持 `yum`。
-- HCE 2.0及以后一般同时支持 `yum` 和 `dnf`。[华为云EulerOS软件管理说明](https://support.huaweicloud.com/intl/en-us/usermanual-hce/hce_02_0021.html)
+HCE 2.0同时支持 `yum` 和 `dnf`，下面统一使用 `dnf`。[华为云HCE软件管理说明](https://support.huaweicloud.com/intl/en-us/usermanual-hce/hce_repo.html)
 
-请在服务器执行下面这些只读命令：
+先不要急着安装 Tomcat，第一步要安装 Java。
 
-```bash
-grep -E '^(NAME|VERSION|ID|VERSION_ID|PRETTY_NAME)=' /etc/os-release
-```
-
-```bash
-uname -m
-```
+请依次执行：
 
 ```bash
-command -v yum
-command -v dnf
+sudo dnf makecache
 ```
+
+然后查询 Java 17：
 
 ```bash
-java -version
+sudo dnf list --available "java-17-openjdk*"
 ```
 
-再检查服务器的软件源：
+再查询 Java 11：
 
 ```bash
-yum repolist
+sudo dnf list --available "java-11-openjdk*"
 ```
 
-把这些命令的输出发给我，我就能判断：
+同时看看软件源有没有自带 Tomcat：
 
-- 应该使用 `yum` 还是 `dnf`
-- 应该安装哪个 Java 包
-- 服务器是 `x86_64` 还是 `aarch64`
-- 能否在线安装
-- 适合安装哪个 Tomcat 版本
+```bash
+sudo dnf list --available "tomcat*"
+```
 
-这些输出通常不包含密码，但如果出现服务器IP、用户名或公司内部域名，可以先打码。
+把这三条查询命令的输出发给我。
+
+我们优先选择：
+
+```text
+Java 17 + Tomcat 10.1
+```
+
+因为后续开发管理员上传功能时，可以使用现代版本的 Spring Boot。如果软件源没有 Java 17，再根据查询结果选择 Java 11。先查询再安装，可以避免包名或版本不匹配。
