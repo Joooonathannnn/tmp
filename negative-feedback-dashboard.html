@@ -70,7 +70,7 @@
 
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
       margin: 18px 0;
     }
@@ -100,7 +100,6 @@
     .summary-note { color: var(--muted); font-size: 12px; }
     .summary-card:nth-child(2) { --tone: var(--cyan); }
     .summary-card:nth-child(3) { --tone: var(--orange); }
-    .summary-card:nth-child(4) { --tone: var(--green); }
 
     .analytics-grid {
       display: grid;
@@ -131,7 +130,7 @@
     .filters-panel { margin-bottom: 18px; padding: 18px 20px; }
     .filter-grid {
       display: grid;
-      grid-template-columns: minmax(200px, 1.5fr) repeat(5, minmax(130px, 1fr)) auto;
+      grid-template-columns: minmax(200px, 1.5fr) repeat(4, minmax(130px, 1fr)) auto;
       gap: 12px;
       align-items: end;
     }
@@ -184,8 +183,6 @@
       background: var(--blue-soft);
       font-size: 12px;
     }
-    .tag-refined { color: #217455; background: #e5f6ef; }
-    .tag-raw { color: #7a6041; background: #f5efe6; }
     .link-button { padding: 6px 0; color: var(--blue); border: 0; background: transparent; }
     .link-button:hover { text-decoration: underline; }
     .empty-state { display: none; padding: 54px 24px; color: var(--muted); text-align: center; }
@@ -304,7 +301,7 @@
       <div>
         <p class="hero-eyebrow">NEGATIVE FEEDBACK INSIGHTS</p>
         <h1>负反馈轨迹统计分析</h1>
-        <p class="hero-subtitle">从轨迹规模到根因定位，统一查看精筛结果与项目映射</p>
+        <p class="hero-subtitle">从轨迹规模到根因定位，统一查看负反馈结果与项目映射</p>
       </div>
       <div>
         <div class="dataset-meta">
@@ -331,16 +328,6 @@
         <p class="summary-value" data-testid="summary-days">0</p>
         <span class="summary-note">按自然日去重统计</span>
       </article>
-      <article class="summary-card">
-        <p class="summary-label">精筛轨迹总量</p>
-        <p class="summary-value" data-testid="summary-refined">0</p>
-        <span class="summary-note">进入重点分析的数据</span>
-      </article>
-      <article class="summary-card">
-        <p class="summary-label">精筛比例</p>
-        <p class="summary-value" data-testid="summary-rate">0%</p>
-        <span class="summary-note">精筛量 ÷ 轨迹总量</span>
-      </article>
     </section>
 
     <section class="analytics-grid" aria-label="统计图表">
@@ -363,7 +350,6 @@
         <div class="field"><label for="filter-keyword">关键词</label><input id="filter-keyword" type="search" placeholder="轨迹、根因、建议或项目"></div>
         <div class="field"><label for="filter-date-from">开始日期</label><input id="filter-date-from" type="date"></div>
         <div class="field"><label for="filter-date-to">结束日期</label><input id="filter-date-to" type="date"></div>
-        <div class="field"><label for="filter-refined">精筛状态</label><select id="filter-refined"><option value="">全部</option><option value="true">已精筛</option><option value="false">未精筛</option></select></div>
         <div class="field"><label for="filter-category">根因类别</label><select id="filter-category"><option value="">全部类别</option></select></div>
         <div class="field"><label for="filter-project">关联项目</label><select id="filter-project"><option value="">全部项目</option></select></div>
         <button class="button-secondary" id="clear-filters" type="button">清空筛选</button>
@@ -377,7 +363,7 @@
       </header>
       <div class="table-wrap">
         <table id="trajectory-table">
-          <thead><tr><th class="cell-time">轨迹时间</th><th class="cell-feedback">负反馈</th><th class="cell-cause">根因类别</th><th>状态</th><th class="cell-project">关联项目</th><th class="cell-action">操作</th></tr></thead>
+          <thead><tr><th class="cell-time">轨迹时间</th><th class="cell-feedback">负反馈</th><th class="cell-cause">根因类别</th><th class="cell-project">关联项目</th><th class="cell-action">操作</th></tr></thead>
           <tbody id="trajectory-body"></tbody>
         </table>
       </div>
@@ -420,7 +406,6 @@
           }
         });
         if (Number.isNaN(Date.parse(record.timestamp))) throw new Error(`${label}的时间格式无效`);
-        if (typeof record.refined !== 'boolean') throw new Error(`${label}的 refined 必须为布尔值`);
         if (!record.project || typeof record.project !== 'object' || Array.isArray(record.project)) {
           throw new Error(`${label}必须且只能关联一个项目对象`);
         }
@@ -435,8 +420,16 @@
     function computeSummary(records) {
       const total = records.length;
       const days = new Set(records.map((record) => record.timestamp.slice(0, 10))).size;
-      const refined = records.filter((record) => record.refined).length;
-      return { total, days, refined, refinedRate: total ? Number((refined * 100 / total).toFixed(1)) : 0 };
+      return { total, days };
+    }
+
+    function normalizeDateRange(dateFrom, dateTo) {
+      const normalizedFrom = String(dateFrom || '');
+      const normalizedTo = String(dateTo || '');
+      return {
+        dateFrom: normalizedFrom,
+        dateTo: normalizedFrom && normalizedTo && normalizedTo < normalizedFrom ? normalizedFrom : normalizedTo,
+      };
     }
 
     function filterRecords(records, filters = {}) {
@@ -445,7 +438,6 @@
         const date = record.timestamp.slice(0, 10);
         if (filters.dateFrom && date < filters.dateFrom) return false;
         if (filters.dateTo && date > filters.dateTo) return false;
-        if (filters.refined && String(record.refined) !== String(filters.refined)) return false;
         if (filters.category && record.rootCauseCategory !== filters.category) return false;
         if (filters.project && record.project.id !== filters.project) return false;
         if (keyword) {
@@ -476,34 +468,34 @@
         .sort((a, b) => a.label.localeCompare(b.label));
     }
 
-    window.DashboardCore = { validateDataset, computeSummary, filterRecords, aggregateByDate, aggregateByField };
+    window.DashboardCore = { validateDataset, computeSummary, filterRecords, aggregateByDate, aggregateByField, normalizeDateRange };
   })();
   </script>
   <script>
   (() => {
-    const { validateDataset, computeSummary, filterRecords, aggregateByDate, aggregateByField } = window.DashboardCore;
+    const { validateDataset, computeSummary, filterRecords, aggregateByDate, aggregateByField, normalizeDateRange } = window.DashboardCore;
     const sampleRecords = [
-      ['NF-001','2026-08-08T09:18:00+08:00','Android',true,'首页指标一直转圈','打开经营首页后核心指标持续加载，刷新仍无数据。','数据加载','高峰期聚合接口响应超过前端超时阈值，页面没有命中缓存。','为核心指标增加短时缓存和分级超时提示，并监控接口P95耗时。','P-001','经营分析看板','核心指标','数据产品组','2.4.0',{api:'/metrics/summary',event:'dashboard_open'}],
-      ['NF-002','2026-08-08T11:42:00+08:00','iOS',false,'筛选条件会被重置','从详情返回列表后，已选择的日期和部门筛选全部丢失。','交互体验','筛选状态只保存在列表组件内部，路由切换时组件被销毁。','将筛选条件同步到URL参数并在返回列表时恢复。','P-001','经营分析看板','筛选器','数据产品组','2.4.0',{page:'dashboard_list',route:'/dashboard'}],
-      ['NF-003','2026-08-09T08:35:00+08:00','Android',true,'昨日数据尚未更新','早晨查看日报时仍显示前一天的更新时间。','数据时效','上游定时任务因分区未就绪延迟执行，但前端没有展示数据状态。','增加分区就绪检测和延迟告警，同时在页面展示数据更新时间与状态。','P-002','指标数据平台','日报任务','数据工程组','3.1.2',{job:'daily_metric_etl',table:'ads_daily_metric'}],
-      ['NF-004','2026-08-09T14:10:00+08:00','H5',true,'提交按钮找不到','填写长表单后无法快速找到提交入口，需要反复滑到底部。','交互体验','操作按钮位于长页面底部且没有吸底操作区。','增加移动端吸底提交栏，并在校验失败时定位到首个错误字段。','P-003','移动任务中心','任务提交','体验设计组','1.9.0',{page:'task_submit',event:'submit_click'}],
-      ['NF-005','2026-08-10T10:25:00+08:00','iOS',false,'搜索结果与关键词无关','输入完整客户名称后，前几条结果仍是无关内容。','检索匹配','搜索排序过度依赖历史热度，精确名称匹配权重不足。','提升精确匹配和前缀匹配权重，补充无关结果率离线评测。','P-004','智能问数助手','全局搜索','算法应用组','0.8.5',{index:'customer_profile',queryField:'customer_name'}],
-      ['NF-006','2026-08-10T16:48:00+08:00','Android',true,'导出的金额与页面不一致','页面显示万元，导出文件中是原始元数值，容易误读。','口径一致性','导出服务未复用页面的单位换算和格式化配置。','将单位和精度配置下沉为共享口径，并在导出表头注明单位。','P-001','经营分析看板','数据导出','数据产品组','2.4.0',{api:'/export/report',field:'amount'}],
-      ['NF-007','2026-08-11T09:02:00+08:00','H5',true,'任务详情偶尔打不开','从消息通知进入任务详情时提示参数错误。','数据映射','通知消息使用外部任务号，详情接口要求内部主键，缺少转换。','在通知跳转前完成任务号映射，并为无效映射提供可追踪错误码。','P-003','移动任务中心','消息跳转','体验设计组','1.9.0',{sourceId:'external_task_no',targetId:'task_id'}],
-      ['NF-008','2026-08-11T13:36:00+08:00','iOS',false,'图表文字被截断','小屏手机上横轴部门名称只能显示前两个字。','适配问题','图表使用固定宽度和固定标签间距，没有按容器宽度调整。','增加响应式刻度密度、文本省略提示和横屏展示方案。','P-001','经营分析看板','趋势图','数据产品组','2.4.0',{chart:'department_trend',dimension:'department_name'}],
-      ['NF-009','2026-08-12T08:50:00+08:00','Android',true,'登录后仍反复跳回登录页','弱网环境登录成功后再次进入页面仍提示未登录。','状态同步','令牌写入与页面跳转并发执行，部分设备读取到旧状态。','登录完成后等待安全存储确认，再触发路由跳转并增加幂等校验。','P-003','移动任务中心','登录鉴权','体验设计组','1.9.0',{storage:'secure_token',route:'/login'}],
-      ['NF-010','2026-08-12T15:22:00+08:00','H5',true,'根因分析内容太笼统','同类问题均显示为“数据异常”，无法指导后续修复。','分析质量','根因标签粒度过粗，缺少模块、链路和责任环节字段。','细化根因分类体系，要求输出直接原因、影响链路和可执行改进项。','P-004','智能问数助手','结果分析','算法应用组','0.8.5',{field:'root_cause',taxonomy:'feedback_v2'}],
-      ['NF-011','2026-08-13T10:06:00+08:00','iOS',false,'项目名称映射错误','某条轨迹关联到了同名的历史项目。','数据映射','映射逻辑只使用项目名称，没有使用稳定项目ID和版本。','改为以项目ID为主键，并将名称仅作为展示字段；冲突时阻止入库。','P-002','指标数据平台','项目映射','数据工程组','3.1.2',{source:'feedback_project_id',target:'project.id'}],
-      ['NF-012','2026-08-13T17:30:00+08:00','Android',true,'列表翻页后重复展示','第二页出现了第一页已经看过的两条记录。','分页稳定性','分页查询缺少稳定的二级排序，相同时间记录顺序不固定。','使用时间和轨迹ID联合排序，并为翻页接口增加重复数据监控。','P-003','移动任务中心','轨迹列表','体验设计组','1.9.0',{api:'/traces',sort:'timestamp,id'}],
+      ['NF-001','2026-08-08T09:18:00+08:00','Android','首页指标一直转圈','打开经营首页后核心指标持续加载，刷新仍无数据。','数据加载','高峰期聚合接口响应超过前端超时阈值，页面没有命中缓存。','为核心指标增加短时缓存和分级超时提示，并监控接口P95耗时。','P-001','经营分析看板','核心指标','数据产品组','2.4.0',{api:'/metrics/summary',event:'dashboard_open'}],
+      ['NF-002','2026-08-08T11:42:00+08:00','iOS','筛选条件会被重置','从详情返回列表后，已选择的日期和部门筛选全部丢失。','交互体验','筛选状态只保存在列表组件内部，路由切换时组件被销毁。','将筛选条件同步到URL参数并在返回列表时恢复。','P-001','经营分析看板','筛选器','数据产品组','2.4.0',{page:'dashboard_list',route:'/dashboard'}],
+      ['NF-003','2026-08-09T08:35:00+08:00','Android','昨日数据尚未更新','早晨查看日报时仍显示前一天的更新时间。','数据时效','上游定时任务因分区未就绪延迟执行，但前端没有展示数据状态。','增加分区就绪检测和延迟告警，同时在页面展示数据更新时间与状态。','P-002','指标数据平台','日报任务','数据工程组','3.1.2',{job:'daily_metric_etl',table:'ads_daily_metric'}],
+      ['NF-004','2026-08-09T14:10:00+08:00','H5','提交按钮找不到','填写长表单后无法快速找到提交入口，需要反复滑到底部。','交互体验','操作按钮位于长页面底部且没有吸底操作区。','增加移动端吸底提交栏，并在校验失败时定位到首个错误字段。','P-003','移动任务中心','任务提交','体验设计组','1.9.0',{page:'task_submit',event:'submit_click'}],
+      ['NF-005','2026-08-10T10:25:00+08:00','iOS','搜索结果与关键词无关','输入完整客户名称后，前几条结果仍是无关内容。','检索匹配','搜索排序过度依赖历史热度，精确名称匹配权重不足。','提升精确匹配和前缀匹配权重，补充无关结果率离线评测。','P-004','智能问数助手','全局搜索','算法应用组','0.8.5',{index:'customer_profile',queryField:'customer_name'}],
+      ['NF-006','2026-08-10T16:48:00+08:00','Android','导出的金额与页面不一致','页面显示万元，导出文件中是原始元数值，容易误读。','口径一致性','导出服务未复用页面的单位换算和格式化配置。','将单位和精度配置下沉为共享口径，并在导出表头注明单位。','P-001','经营分析看板','数据导出','数据产品组','2.4.0',{api:'/export/report',field:'amount'}],
+      ['NF-007','2026-08-11T09:02:00+08:00','H5','任务详情偶尔打不开','从消息通知进入任务详情时提示参数错误。','数据映射','通知消息使用外部任务号，详情接口要求内部主键，缺少转换。','在通知跳转前完成任务号映射，并为无效映射提供可追踪错误码。','P-003','移动任务中心','消息跳转','体验设计组','1.9.0',{sourceId:'external_task_no',targetId:'task_id'}],
+      ['NF-008','2026-08-11T13:36:00+08:00','iOS','图表文字被截断','小屏手机上横轴部门名称只能显示前两个字。','适配问题','图表使用固定宽度和固定标签间距，没有按容器宽度调整。','增加响应式刻度密度、文本省略提示和横屏展示方案。','P-001','经营分析看板','趋势图','数据产品组','2.4.0',{chart:'department_trend',dimension:'department_name'}],
+      ['NF-009','2026-08-12T08:50:00+08:00','Android','登录后仍反复跳回登录页','弱网环境登录成功后再次进入页面仍提示未登录。','状态同步','令牌写入与页面跳转并发执行，部分设备读取到旧状态。','登录完成后等待安全存储确认，再触发路由跳转并增加幂等校验。','P-003','移动任务中心','登录鉴权','体验设计组','1.9.0',{storage:'secure_token',route:'/login'}],
+      ['NF-010','2026-08-12T15:22:00+08:00','H5','根因分析内容太笼统','同类问题均显示为“数据异常”，无法指导后续修复。','分析质量','根因标签粒度过粗，缺少模块、链路和责任环节字段。','细化根因分类体系，要求输出直接原因、影响链路和可执行改进项。','P-004','智能问数助手','结果分析','算法应用组','0.8.5',{field:'root_cause',taxonomy:'feedback_v2'}],
+      ['NF-011','2026-08-13T10:06:00+08:00','iOS','项目名称映射错误','某条轨迹关联到了同名的历史项目。','数据映射','映射逻辑只使用项目名称，没有使用稳定项目ID和版本。','改为以项目ID为主键，并将名称仅作为展示字段；冲突时阻止入库。','P-002','指标数据平台','项目映射','数据工程组','3.1.2',{source:'feedback_project_id',target:'project.id'}],
+      ['NF-012','2026-08-13T17:30:00+08:00','Android','列表翻页后重复展示','第二页出现了第一页已经看过的两条记录。','分页稳定性','分页查询缺少稳定的二级排序，相同时间记录顺序不固定。','使用时间和轨迹ID联合排序，并为翻页接口增加重复数据监控。','P-003','移动任务中心','轨迹列表','体验设计组','1.9.0',{api:'/traces',sort:'timestamp,id'}],
     ];
 
     const sampleDataset = {
       datasetName: '负反馈轨迹示例数据',
       generatedAt: '2026-08-14T09:00:00+08:00',
       records: sampleRecords.map((row) => ({
-        id: row[0], timestamp: row[1], source: row[2], refined: row[3], feedbackSummary: row[4],
-        feedbackContent: row[5], rootCauseCategory: row[6], rootCauseAnalysis: row[7],
-        improvementSuggestion: row[8], project: { id: row[9], name: row[10], module: row[11], owner: row[12], version: row[13], dataMapping: row[14] },
+        id: row[0], timestamp: row[1], source: row[2], feedbackSummary: row[3],
+        feedbackContent: row[4], rootCauseCategory: row[5], rootCauseAnalysis: row[6],
+        improvementSuggestion: row[7], project: { id: row[8], name: row[9], module: row[10], owner: row[11], version: row[12], dataMapping: row[13] },
       })),
     };
 
@@ -517,8 +509,6 @@
       const summary = computeSummary(records);
       $('[data-testid="summary-total"]').textContent = summary.total;
       $('[data-testid="summary-days"]').textContent = summary.days;
-      $('[data-testid="summary-refined"]').textContent = summary.refined;
-      $('[data-testid="summary-rate"]').textContent = `${summary.refinedRate}%`;
     }
 
     function renderVerticalChart(svg, data) {
@@ -570,7 +560,6 @@
           <td class="cell-time">${escapeHtml(formatDateTime(record.timestamp))}<br><small>${escapeHtml(record.source || '—')}</small></td>
           <td class="cell-feedback"><strong>${escapeHtml(record.feedbackSummary)}</strong><small>${escapeHtml(record.id)}</small></td>
           <td class="cell-cause"><span class="tag">${escapeHtml(record.rootCauseCategory)}</span></td>
-          <td><span class="tag ${record.refined ? 'tag-refined' : 'tag-raw'}">${record.refined ? '已精筛' : '未精筛'}</span></td>
           <td class="cell-project">${escapeHtml(record.project.name)}<br><small>${escapeHtml(record.project.module || '—')}</small></td>
           <td class="cell-action"><button class="link-button" type="button" data-record-id="${escapeHtml(record.id)}">查看</button></td>
         </tr>`).join('');
@@ -617,7 +606,7 @@
       const record = state.dataset.records.find((item) => item.id === recordId);
       if (!record) return;
       $('#detail-title').textContent = record.feedbackSummary;
-      $('#detail-meta').textContent = `${record.id} · ${new Date(record.timestamp).toLocaleString('zh-CN')} · ${record.source || '未知来源'} · ${record.refined ? '已精筛' : '未精筛'}`;
+      $('#detail-meta').textContent = `${record.id} · ${new Date(record.timestamp).toLocaleString('zh-CN')} · ${record.source || '未知来源'}`;
       $('#detail-feedback').textContent = record.feedbackContent;
       $('#detail-root-cause').textContent = `${record.rootCauseCategory}：${record.rootCauseAnalysis}`;
       $('#detail-suggestion').textContent = record.improvementSuggestion;
@@ -634,7 +623,7 @@
       datasetName: '请填写数据集名称',
       generatedAt: '2026-08-14T09:00:00+08:00',
       records: [{
-        id: 'NF-001', timestamp: '2026-08-14T09:00:00+08:00', source: 'Android', refined: true,
+        id: 'NF-001', timestamp: '2026-08-14T09:00:00+08:00', source: 'Android',
         feedbackSummary: '请填写负反馈摘要', feedbackContent: '请填写完整负反馈内容',
         rootCauseCategory: '请填写根因类别', rootCauseAnalysis: '请填写根因分析',
         improvementSuggestion: '请填写改进建议',
@@ -655,11 +644,15 @@
     }
 
     function readFilters() {
+      const dateFromInput = $('#filter-date-from');
+      const dateToInput = $('#filter-date-to');
+      const dateRange = normalizeDateRange(dateFromInput.value, dateToInput.value);
+      dateToInput.min = dateRange.dateFrom;
+      if (dateToInput.value !== dateRange.dateTo) dateToInput.value = dateRange.dateTo;
       state.filters = {
         keyword: $('#filter-keyword').value,
-        dateFrom: $('#filter-date-from').value,
-        dateTo: $('#filter-date-to').value,
-        refined: $('#filter-refined').value,
+        dateFrom: dateRange.dateFrom,
+        dateTo: dateRange.dateTo,
         category: $('#filter-category').value,
         project: $('#filter-project').value,
       };
@@ -667,10 +660,10 @@
       renderDashboard();
     }
 
-    ['#filter-keyword','#filter-date-from','#filter-date-to','#filter-refined','#filter-category','#filter-project']
+    ['#filter-keyword','#filter-date-from','#filter-date-to','#filter-category','#filter-project']
       .forEach((selector) => $(selector).addEventListener('input', readFilters));
     $('#clear-filters').addEventListener('click', () => {
-      $$('#filter-keyword, #filter-date-from, #filter-date-to, #filter-refined, #filter-category, #filter-project').forEach((input) => { input.value = ''; });
+      $$('#filter-keyword, #filter-date-from, #filter-date-to, #filter-category, #filter-project').forEach((input) => { input.value = ''; });
       readFilters();
     });
     $('#pagination').addEventListener('click', (event) => {
