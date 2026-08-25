@@ -1,35 +1,35 @@
-这个总提示表示 Maven 无法下载项目依赖，通常不是源码错误。先保存完整错误：
+根因已经明确：Maven 下载 `byte-buddy-1.12.19.jar` 时连接提前断开，留下的缓存文件可能不完整。不是项目代码错误。
+
+先只清理这个依赖的缓存：
+
+```powershell
+$byteBuddyDir = "$env:USERPROFILE\.m2\repository\net\bytebuddy\byte-buddy\1.12.19"
+
+Remove-Item -LiteralPath $byteBuddyDir -Recurse -Force
+```
+
+这只删除 Maven 的一个依赖缓存，不会删除项目源码。然后重新构建：
 
 ```powershell
 cd "你的目录\feedback-server"
-mvn clean package -e 2>&1 | Tee-Object "$env:TEMP\maven-build-error.txt"
-notepad "$env:TEMP\maven-build-error.txt"
+mvn -U clean package
 ```
 
-在 TXT 末尾查找：
+如果依然卡在同一个文件，可以用浏览器从 Maven 官方仓库手动下载：
+
+- [byte-buddy-1.12.19.jar](https://repo.maven.apache.org/maven2/net/bytebuddy/byte-buddy/1.12.19/byte-buddy-1.12.19.jar)
+- [byte-buddy-1.12.19.pom](https://repo.maven.apache.org/maven2/net/bytebuddy/byte-buddy/1.12.19/byte-buddy-1.12.19.pom)
+
+然后把两个文件放到：
 
 ```text
-Caused by:
-Could not transfer artifact
+C:\Users\你的用户名\.m2\repository\net\bytebuddy\byte-buddy\1.12.19\
 ```
 
-同时测试 Maven 官方仓库连通性：
+再次执行：
 
 ```powershell
-Test-NetConnection repo.maven.apache.org -Port 443
+mvn clean package
 ```
 
-根据结果处理：
-
-- `TcpTestSucceeded : False` 或 `Connection timed out`：电脑无法访问 Maven 仓库，需要使用公司内部 Maven 镜像，或者换到能访问外网的构建电脑。
-- `PKIX path building failed`：公司网络证书不被当前 JDK 信任。
-- `401` 或 `403`：仓库需要账号认证。
-- `Could not find artifact`：镜像仓库缺少对应依赖，或依赖版本有问题。
-
-你只需要把 TXT 中 `Caused by:` 后面第一行，或者 `Could not transfer artifact...` 那一行手动输入给我，不需要发送整份日志。
-
-
-Select-String `
-  -Path "$env:TEMP\maven-build-error.txt" `
-  -Pattern "Could not transfer artifact|Downloading from|ConnectionClosedException" `
-  -Context 1,1
+如果后续又有多个不同依赖出现同样的 `Premature end`，那就不是单个缓存问题，而是网络或公司代理持续截断 Maven 下载，需要使用公司内部 Maven 镜像或换一个网络环境构建。
