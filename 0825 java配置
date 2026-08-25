@@ -1,58 +1,34 @@
-这些环境变量命令如果“没有输出”，就表示没有配置，属于正常情况。
-
-现在只需要比较 Maven 和命令行使用的是不是同一个 Java。
-
-运行：
-
-```powershell
-$pathJava = (Get-Item (Get-Command java.exe).Source).FullName
-$homeJava = (Get-Item (Join-Path $env:JAVA_HOME "bin\java.exe")).FullName
-
-$pathJava
-$homeJava
-$pathJava -eq $homeJava
-```
-
-最后一行会显示 `True` 或 `False`。
-
-如果显示 `False`
-
-说明 `Path` 指向了另一套 Java。打开“系统环境变量”：
-
-- `JAVA_HOME` 设置成 JDK 根目录，例如：
-
-```text
-C:\Java\jdk1.8.0_352
-```
-
-不要带引号，也不要加 `\bin`。
-
-- 在 `Path` 中删除原来的 Java 路径，添加：
-
-```text
-%JAVA_HOME%\bin
-```
-
-将它移到靠前位置。关闭全部 PowerShell，再重新打开并执行：
+原因找到了。Java 查看版本使用单横杠：
 
 ```powershell
 java -version
+```
+
+而 Maven 使用双横杠或单横杠都可以：
+
+```powershell
 mvn -version
 ```
 
-如果显示 `True`
+```powershell
+mvn --version
+```
 
-运行下面的命令：
+现在进入项目目录构建即可：
 
 ```powershell
-java -version 2>&1 | Set-Content "$env:TEMP\java-error.txt"
-notepad "$env:TEMP\java-error.txt"
+cd "你的目录\feedback-server"
+mvn clean package
 ```
 
-重点看 `Could not create the Java Virtual Machine` 上面的第一行，一般会写出真正原因，例如：
+看到 `BUILD SUCCESS` 后，取出：
 
 ```text
-Unrecognized option: 某个参数
+target\feedback.war
 ```
 
-你只需要把这第一行手动告诉我即可。
+上传到 Tomcat 服务器的：
+
+```text
+/opt/tomcat/webapps/feedback.war
+```
