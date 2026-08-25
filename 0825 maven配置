@@ -27,3 +27,9 @@ Test-NetConnection repo.maven.apache.org -Port 443
 - `Could not find artifact`：镜像仓库缺少对应依赖，或依赖版本有问题。
 
 你只需要把 TXT 中 `Caused by:` 后面第一行，或者 `Could not transfer artifact...` 那一行手动输入给我，不需要发送整份日志。
+
+
+Select-String `
+  -Path "$env:TEMP\maven-build-error.txt" `
+  -Pattern "Could not transfer artifact|Downloading from|ConnectionClosedException" `
+  -Context 1,1
