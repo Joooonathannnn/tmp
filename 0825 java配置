@@ -1,0 +1,28 @@
+先不要重新安装。`mvn -version` 能运行，说明 Maven 使用的 Java 很可能正常；`java -version` 可能调用了 `Path` 中另一套损坏或过旧的 Java。
+
+请在 PowerShell 依次运行，并把完整结果发给我：
+
+```powershell
+where.exe java
+where.exe mvn
+$env:JAVA_HOME
+& "$env:JAVA_HOME\bin\java.exe" -version
+mvn -version
+```
+
+再检查有没有错误的全局 JVM 参数：
+
+```powershell
+Get-Item Env:_JAVA_OPTIONS -ErrorAction SilentlyContinue
+Get-Item Env:JAVA_TOOL_OPTIONS -ErrorAction SilentlyContinue
+Get-Item Env:JDK_JAVA_OPTIONS -ErrorAction SilentlyContinue
+```
+
+重点看：
+
+- `where.exe java` 是否显示多个 `java.exe`
+- `mvn -version` 中的 `Java home` 指向哪里
+- 直接运行 `$env:JAVA_HOME\bin\java.exe` 是否正常
+- 报错前面是否还有类似 `Unrecognized option` 的提示
+
+把这些结果贴出来，就能准确判断该改 `Path`、`JAVA_HOME`，还是删除错误的 JVM 参数。
