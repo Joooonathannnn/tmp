@@ -1,39 +1,62 @@
-这表示 Maven 已经进入测试阶段，但某个测试失败或测试进程异常。仅凭这一行不能判断原因，暂时不要用 `-DskipTests` 跳过。
+关键要看这次失败的 artifact 是否仍然是 `byte-buddy`。有可能 Byte Buddy 已经解决，现在下载另一个依赖时又被网络中断。
 
-进入 `feedback-server` 目录，打开测试报告：
+执行下面的命令，只提取最后一个失败依赖：
 
 ```powershell
-explorer .\target\surefire-reports
+mvn clean package 2>&1 |
+  Tee-Object "$env:TEMP\maven-latest.txt"
+
+(Select-String `
+  -Path "$env:TEMP\maven-latest.txt" `
+  -Pattern "Could not transfer artifact" |
+  Select-Object -Last 1).Line
 ```
 
-里面应有三份 `.txt` 报告：
+如果仍然是 `net.bytebuddy:byte-buddy:jar:1.12.19`
+
+检查手动放入的文件名和完整性：
+
+```powershell
+$byteBuddyDir = "$env:USERPROFILE\.m2\repository\net\bytebuddy\byte-buddy\1.12.19"
+
+Get-ChildItem -LiteralPath $byteBuddyDir |
+  Select-Object Name, Length
+```
+
+文件名必须准确是：
 
 ```text
-com.example.feedback.DatasetValidatorTest.txt
-com.example.feedback.DatasetStoreTest.txt
-com.example.feedback.DatasetServletTest.txt
+byte-buddy-1.12.19.jar
+byte-buddy-1.12.19.pom
 ```
 
-快速提取真正的错误：
+不能是：
+
+```text
+byte-buddy-1.12.19.jar.html
+byte-buddy-1.12.19 (1).jar
+byte-buddy-1.12.19.pom.txt
+```
+
+验证 JAR 是否完整：
 
 ```powershell
-Select-String `
-  -Path ".\target\surefire-reports\*.txt" `
-  -Pattern "<<< FAILURE|<<< ERROR|AssertionError|Exception"
+& "$env:JAVA_HOME\bin\jar.exe" tf `
+  "$byteBuddyDir\byte-buddy-1.12.19.jar" |
+  Select-Object -First 5
 ```
 
-你只需要告诉我：
-
-1. 哪个测试名称后面出现了 `<<< FAILURE` 或 `<<< ERROR`。
-2. 它后面的第一条 `java.lang...` 或错误信息。
-
-如果 `target\Surefire-reports` 不存在，则执行：
+如果能显示 `META-INF` 等内容，JAR 基本完整。然后不要加 `-U`，直接运行：
 
 ```powershell
-mvn test 2>&1 |
-  Tee-Object "$env:TEMP\feedback-test.txt"
-
-Get-Content "$env:TEMP\feedback-test.txt" -Tail 30
+mvn clean package
 ```
 
-`Failed to execute goal ... surefire ...` 只是汇总信息，真正原因一定在它前面或 `surefire-reports` 中。
+如果已经变成另一个 artifact
+
+说明手动放入的 Byte Buddy 已经生效，但网络又中断了其他依赖下载。这种情况下不适合逐个手动下载，根本解决方案是：
+
+- 换到能够稳定访问 Maven Central 的网络环境；或
+- 向公司同事获取内部 Maven 镜像地址并配置到 `settings.xml`。
+
+先看最后一条 `Could not transfer artifact` 中的 artifact 名称是否还是 `byte-buddy`。
