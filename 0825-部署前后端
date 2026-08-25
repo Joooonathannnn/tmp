@@ -1,0 +1,202 @@
+你现在的服务器只有运行环境，还缺少最关键的 `feedback.war`。Java源码不能直接复制进 Tomcat，必须先在公司构建环境中编译成 WAR。
+
+整体流程：
+
+```text
+服务器版源码
+   ↓ 公司build.yml构建
+feedback.war
+   ↓ 上传服务器
+Tomcat部署
+   ↓
+浏览器访问
+```
+
+## 第一步：在构建环境生成WAR
+
+把整个文件夹：
+
+```text
+C:\Code\Remote_work\0814\feedback-server
+```
+
+提交到公司构建项目中。
+
+构建命令：
+
+```bash
+mvn -f feedback-server/pom.xml clean package
+```
+
+构建环境需要：
+
+```text
+JDK 8或以上
+Maven 3.9.x
+能够访问公司Maven仓库
+```
+
+成功后获取：
+
+```text
+feedback-server/target/feedback.war
+```
+
+服务器本身不需要安装 Maven。
+
+## 第二步：上传WAR
+
+在存放 `feedback.war`的电脑上执行：
+
+```powershell
+scp "feedback.war" 用户名@服务器IP:/tmp/feedback.war
+```
+
+服务器检查：
+
+```bash
+ls -lh /tmp/feedback.war
+```
+
+## 第三步：创建共享数据目录
+
+服务器执行：
+
+```bash
+sudo mkdir -p /var/lib/feedback/backups
+sudo chown -R tomcat:tomcat /var/lib/feedback
+sudo chmod 750 /var/lib/feedback
+sudo chmod 750 /var/lib/feedback/backups
+```
+
+## 第四步：配置Tomcat数据目录
+
+执行：
+
+```bash
+sudo systemctl edit tomcat
+```
+
+填写：
+
+```ini
+[Service]
+Environment="FEEDBACK_DATA_DIR=/var/lib/feedback"
+```
+
+保存后执行：
+
+```bash
+sudo systemctl daemon-reload
+```
+
+检查：
+
+```bash
+sudo systemctl show tomcat --property=Environment
+```
+
+应该包含：
+
+```text
+FEEDBACK_DATA_DIR=/var/lib/feedback
+```
+
+## 第五步：备份现在的初始页面
+
+你现在应该有：
+
+```text
+/opt/tomcat/webapps/feedback/index.html
+```
+
+先确认：
+
+```bash
+ls -la /opt/tomcat/webapps/feedback
+```
+
+停止 Tomcat：
+
+```bash
+sudo systemctl stop tomcat
+```
+
+创建备份目录：
+
+```bash
+sudo mkdir -p /opt/tomcat/deploy-backup
+```
+
+把当前静态页面移出 `webapps`：
+
+```bash
+sudo mv /opt/tomcat/webapps/feedback /opt/tomcat/deploy-backup/feedback-static
+```
+
+如果提示目标已经存在，停止操作，不要覆盖。
+
+`webapps/ROOT/index.html`可以保留，它对应根地址，不影响 `/feedback/`。
+
+## 第六步：部署WAR
+
+```bash
+sudo cp /tmp/feedback.war /opt/tomcat/webapps/feedback.war
+sudo chown tomcat:tomcat /opt/tomcat/webapps/feedback.war
+sudo chmod 640 /opt/tomcat/webapps/feedback.war
+sudo systemctl start tomcat
+```
+
+Tomcat会自动把 WAR解压成：
+
+```text
+/opt/tomcat/webapps/feedback/
+```
+
+## 第七步：验证后端
+
+```bash
+curl -i http://127.0.0.1:8080/feedback/api/health
+```
+
+正常应返回：
+
+```json
+{"status":"UP"}
+```
+
+未上传数据时：
+
+```bash
+curl -i http://127.0.0.1:8080/feedback/api/dataset
+```
+
+应该返回404和：
+
+```json
+{"code":"NO_DATA","message":"尚未上传共享数据"}
+```
+
+## 第八步：打开页面并上传数据
+
+浏览器访问：
+
+```text
+http://服务器IP:8080/feedback/
+```
+
+点击“上传共享数据”，选择有效 JSON。
+
+上传后服务器会生成：
+
+```text
+/var/lib/feedback/current.json
+```
+
+第二次上传后会在下面产生备份：
+
+```text
+/var/lib/feedback/backups/
+```
+
+所以你现在首先需要完成的是：在公司 `build.yml`环境中把源码构建成 `feedback.war`。没有这个 WAR，仅靠 Tomcat、JDK和初始 `index.html`还无法实现共享数据后端。
