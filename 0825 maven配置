@@ -1,65 +1,79 @@
-“返回很多东西”大概率是接口返回了完整 JSON 数据，说明上传已经成功。先只看 HTTP 状态码：
+已经定位到原因：Tomcat 启动时没有读取到 `FEEDBACK_DATA_DIR`，所以程序使用了临时目录。需要修正环境变量并把现有数据复制到正式目录。
+
+按顺序执行：
+
+### 1. 停止 Tomcat
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/feedback/api/dataset
+sudo systemctl stop tomcat
 ```
 
-如果返回：
+### 2. 把现有数据复制到正式目录
 
-```text
-200
-```
-
-说明数据确实已经保存，只是可能保存到了 Tomcat 临时目录，而不是 `/var/lib/feedback`。
-
-查找实际文件位置：
+使用复制而不是移动，临时目录中仍保留一份：
 
 ```bash
-sudo find /var/lib/feedback /opt/tomcat/temp /tmp -maxdepth 4 -type f -name current.json -print
+sudo cp -p /opt/tomcat/temp/feedback-data/current.json /var/lib/feedback/current.json
+sudo chown tomcat:tomcat /var/lib/feedback/current.json
+sudo chmod 640 /var/lib/feedback/current.json
 ```
 
-注意：我前面说默认一定是 `/tmp/feedback-data` 不够准确。Tomcat 通常会把 Java 临时目录设置成：
-
-```text
-/opt/tomcat/temp
-```
-
-因此文件可能位于：
-
-```text
-/opt/tomcat/temp/feedback-data/current.json
-```
-
-再检查环境变量：
-
-```bash
-sudo systemctl show tomcat --property=Environment
-```
-
-如果没有看到：
-
-```text
-FEEDBACK_DATA_DIR=/var/lib/feedback
-```
-
-说明数据目录配置没有生效，需要重新执行：
+### 3. 重新配置环境变量
 
 ```bash
 sudo systemctl edit tomcat
 ```
 
-填写：
+确保内容准确为：
 
 ```ini
 [Service]
 Environment="FEEDBACK_DATA_DIR=/var/lib/feedback"
 ```
 
-保存后执行：
+保存退出，然后执行：
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl restart tomcat
+sudo systemctl start tomcat
 ```
 
-暂时不要移动数据。先运行上面的 `find`，确定 `current.json` 实际在哪个路径。只需要告诉我它输出的那一条路径。
+### 4. 确认配置生效
+
+```bash
+sudo systemctl show tomcat --property=Environment
+```
+
+必须包含：
+
+```text
+FEEDBACK_DATA_DIR=/var/lib/feedback
+```
+
+检查接口：
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/feedback/api/dataset
+```
+
+应返回：
+
+```text
+200
+```
+
+检查正式数据：
+
+```bash
+sudo ls -lh /var/lib/feedback/current.json
+```
+
+### 5. 验证备份功能
+
+在网页上再次上传一次 JSON，然后检查：
+
+```bash
+sudo ls -lh /var/lib/feedback/backups
+```
+
+这时应该出现一份备份文件。确认一切正常前，不要删除 `/opt/tomcat/temp/feedback-data/current.json`，它可以暂时作为恢复副本。
