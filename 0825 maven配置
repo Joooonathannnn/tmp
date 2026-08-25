@@ -1,35 +1,39 @@
-根因已经明确：Maven 下载 `byte-buddy-1.12.19.jar` 时连接提前断开，留下的缓存文件可能不完整。不是项目代码错误。
+这表示 Maven 已经进入测试阶段，但某个测试失败或测试进程异常。仅凭这一行不能判断原因，暂时不要用 `-DskipTests` 跳过。
 
-先只清理这个依赖的缓存：
-
-```powershell
-$byteBuddyDir = "$env:USERPROFILE\.m2\repository\net\bytebuddy\byte-buddy\1.12.19"
-
-Remove-Item -LiteralPath $byteBuddyDir -Recurse -Force
-```
-
-这只删除 Maven 的一个依赖缓存，不会删除项目源码。然后重新构建：
+进入 `feedback-server` 目录，打开测试报告：
 
 ```powershell
-cd "你的目录\feedback-server"
-mvn -U clean package
+explorer .\target\surefire-reports
 ```
 
-如果依然卡在同一个文件，可以用浏览器从 Maven 官方仓库手动下载：
-
-- [byte-buddy-1.12.19.jar](https://repo.maven.apache.org/maven2/net/bytebuddy/byte-buddy/1.12.19/byte-buddy-1.12.19.jar)
-- [byte-buddy-1.12.19.pom](https://repo.maven.apache.org/maven2/net/bytebuddy/byte-buddy/1.12.19/byte-buddy-1.12.19.pom)
-
-然后把两个文件放到：
+里面应有三份 `.txt` 报告：
 
 ```text
-C:\Users\你的用户名\.m2\repository\net\bytebuddy\byte-buddy\1.12.19\
+com.example.feedback.DatasetValidatorTest.txt
+com.example.feedback.DatasetStoreTest.txt
+com.example.feedback.DatasetServletTest.txt
 ```
 
-再次执行：
+快速提取真正的错误：
 
 ```powershell
-mvn clean package
+Select-String `
+  -Path ".\target\surefire-reports\*.txt" `
+  -Pattern "<<< FAILURE|<<< ERROR|AssertionError|Exception"
 ```
 
-如果后续又有多个不同依赖出现同样的 `Premature end`，那就不是单个缓存问题，而是网络或公司代理持续截断 Maven 下载，需要使用公司内部 Maven 镜像或换一个网络环境构建。
+你只需要告诉我：
+
+1. 哪个测试名称后面出现了 `<<< FAILURE` 或 `<<< ERROR`。
+2. 它后面的第一条 `java.lang...` 或错误信息。
+
+如果 `target\Surefire-reports` 不存在，则执行：
+
+```powershell
+mvn test 2>&1 |
+  Tee-Object "$env:TEMP\feedback-test.txt"
+
+Get-Content "$env:TEMP\feedback-test.txt" -Tail 30
+```
+
+`Failed to execute goal ... surefire ...` 只是汇总信息，真正原因一定在它前面或 `surefire-reports` 中。
