@@ -1,120 +1,44 @@
-现在已经生成部署文件了。下一步把 `feedback.war` 上传到服务器并交给 Tomcat 发布。
+如果健康接口已经返回 `{"status":"UP"}`，接下来完成一次实际上传测试：
 
-### 1. 在构建电脑找到 WAR
-
-确保当前位于 `feedback-server`：
-
-```powershell
-Get-Item .\target\feedback.war
-explorer .\target
-```
-
-里面的 `feedback.war` 就是要上传的文件。
-
-### 2. 上传到服务器临时目录
-
-在构建电脑 PowerShell 执行：
-
-```powershell
-scp ".\target\feedback.war" 服务器用户名@服务器IP:/tmp/feedback.war
-```
-
-例如：
-
-```powershell
-scp ".\target\feedback.war" testuser@10.10.10.10:/tmp/feedback.war
-```
-
-也可以使用 WinSCP，把文件上传到服务器的 `/tmp/feedback.war`。
-
-### 3. 在服务器创建数据目录
-
-登录服务器后执行：
-
-```bash
-sudo mkdir -p /var/lib/feedback/backups
-sudo chown -R tomcat:tomcat /var/lib/feedback
-sudo chmod 750 /var/lib/feedback
-sudo chmod 750 /var/lib/feedback/backups
-```
-
-### 4. 配置 Tomcat 数据目录
-
-执行：
-
-```bash
-sudo systemctl edit tomcat
-```
-
-写入：
-
-```ini
-[Service]
-Environment="FEEDBACK_DATA_DIR=/var/lib/feedback"
-```
-
-保存退出，然后执行：
-
-```bash
-sudo systemctl daemon-reload
-```
-
-### 5. 备份原来的静态页面并部署 WAR
-
-停止 Tomcat：
-
-```bash
-sudo systemctl stop tomcat
-```
-
-备份原来的 `feedback` 文件夹：
-
-```bash
-sudo mkdir -p /opt/tomcat/deploy-backup
-sudo mv /opt/tomcat/webapps/feedback /opt/tomcat/deploy-backup/feedback-static-before-war
-```
-
-如果提示目标文件夹已经存在，先停止，不要覆盖。
-
-部署 WAR：
-
-```bash
-sudo cp /tmp/feedback.war /opt/tomcat/webapps/feedback.war
-sudo chown tomcat:tomcat /opt/tomcat/webapps/feedback.war
-sudo chmod 640 /opt/tomcat/webapps/feedback.war
-sudo systemctl start tomcat
-```
-
-### 6. 验证部署
-
-查看 Tomcat 状态：
-
-```bash
-sudo systemctl status tomcat
-```
-
-检查健康接口：
-
-```bash
-curl -i http://127.0.0.1:8080/feedback/api/health
-```
-
-正常应返回：
-
-```json
-{"status":"UP"}
-```
-
-尚未上传数据时，下面接口返回 `404` 是正常的：
-
-```bash
-curl -i http://127.0.0.1:8080/feedback/api/dataset
-```
-
-最后在其他电脑浏览器访问：
+1. 浏览器打开：
 
 ```text
 http://服务器IP:8080/feedback/
 ```
 
-先完成到健康接口验证；只有返回 `{"status":"UP"}`，才说明服务器版已经正确启动。
+2. 点击页面上的“下载模板”。
+
+3. 先不要修改，直接把下载的模板通过“上传共享数据”上传一次。
+
+4. 页面应立即显示一条示例轨迹。刷新页面后数据仍然存在，说明后端保存正常。
+
+5. 在服务器检查数据文件：
+
+```bash
+ls -lh /var/lib/feedback/current.json
+```
+
+6. 再用另一台内网电脑打开同一个网址。如果也能看到这条数据，说明共享网站已经正常工作。
+
+随后可以在有真实数据的电脑上：
+
+- 下载 JSON 模板。
+- 按模板整理负反馈轨迹。
+- 每条轨迹填写根因分析、改进建议。
+- 每条轨迹关联且只关联一个 `project`。
+- 上传新 JSON；新数据会整份替换测试数据。
+
+最后确认 Tomcat开机自动启动：
+
+```bash
+sudo systemctl enable tomcat
+sudo systemctl is-enabled tomcat
+```
+
+正常应显示：
+
+```text
+enabled
+```
+
+注意：当前版本没有登录权限控制，能访问内网页面的人都可以点击上传。正式推广前，需要确保只在可信内网开放；如果必须仅管理员上传，后续还需要增加登录或访问控制。
