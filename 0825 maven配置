@@ -1,3 +1,29 @@
+这个总提示表示 Maven 无法下载项目依赖，通常不是源码错误。先保存完整错误：
+
+```powershell
 cd "你的目录\feedback-server"
 mvn clean package -e 2>&1 | Tee-Object "$env:TEMP\maven-build-error.txt"
 notepad "$env:TEMP\maven-build-error.txt"
+```
+
+在 TXT 末尾查找：
+
+```text
+Caused by:
+Could not transfer artifact
+```
+
+同时测试 Maven 官方仓库连通性：
+
+```powershell
+Test-NetConnection repo.maven.apache.org -Port 443
+```
+
+根据结果处理：
+
+- `TcpTestSucceeded : False` 或 `Connection timed out`：电脑无法访问 Maven 仓库，需要使用公司内部 Maven 镜像，或者换到能访问外网的构建电脑。
+- `PKIX path building failed`：公司网络证书不被当前 JDK 信任。
+- `401` 或 `403`：仓库需要账号认证。
+- `Could not find artifact`：镜像仓库缺少对应依赖，或依赖版本有问题。
+
+你只需要把 TXT 中 `Caused by:` 后面第一行，或者 `Could not transfer artifact...` 那一行手动输入给我，不需要发送整份日志。
