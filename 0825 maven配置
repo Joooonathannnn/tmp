@@ -1,4 +1,20 @@
-如果健康接口已经返回 `{"status":"UP"}`，接下来完成一次实际上传测试：
+如果还没有成功上传过数据，这是正常的：
+
+- 第一次成功上传后，才会生成：
+
+```text
+/var/lib/feedback/current.json
+```
+
+- 第二次成功上传后，旧数据才会进入：
+
+```text
+/var/lib/feedback/backups/
+```
+
+所以 `backups` 第一次上传后仍为空。
+
+现在进行一次上传：
 
 1. 浏览器打开：
 
@@ -6,39 +22,38 @@
 http://服务器IP:8080/feedback/
 ```
 
-2. 点击页面上的“下载模板”。
+2. 点击“下载模板”。
+3. 点击“上传共享数据”，选择刚下载的 JSON。
+4. 确认页面提示“上传成功”。
 
-3. 先不要修改，直接把下载的模板通过“上传共享数据”上传一次。
-
-4. 页面应立即显示一条示例轨迹。刷新页面后数据仍然存在，说明后端保存正常。
-
-5. 在服务器检查数据文件：
+然后在服务器检查：
 
 ```bash
-ls -lh /var/lib/feedback/current.json
+sudo ls -lh /var/lib/feedback/current.json
 ```
 
-6. 再用另一台内网电脑打开同一个网址。如果也能看到这条数据，说明共享网站已经正常工作。
-
-随后可以在有真实数据的电脑上：
-
-- 下载 JSON 模板。
-- 按模板整理负反馈轨迹。
-- 每条轨迹填写根因分析、改进建议。
-- 每条轨迹关联且只关联一个 `project`。
-- 上传新 JSON；新数据会整份替换测试数据。
-
-最后确认 Tomcat开机自动启动：
+如果页面提示上传成功，但这里仍然没有文件，执行：
 
 ```bash
-sudo systemctl enable tomcat
-sudo systemctl is-enabled tomcat
+curl -i http://127.0.0.1:8080/feedback/api/dataset
+sudo systemctl show tomcat --property=Environment
+sudo ls -lh /tmp/feedback-data
 ```
 
-正常应显示：
+判断方式：
+
+- API 返回 `404 NO_DATA`：上传没有成功。
+- API 返回 `200` 且 `/tmp/feedback-data/current.json` 存在：Tomcat 没加载 `FEEDBACK_DATA_DIR`。
+- API 返回 `500 SAVE_FAILED`：通常是 `/var/lib/feedback` 权限不对。
+
+权限可以检查为：
+
+```bash
+ls -ld /var/lib/feedback
+```
+
+应当显示所有者和用户组为：
 
 ```text
-enabled
+tomcat tomcat
 ```
-
-注意：当前版本没有登录权限控制，能访问内网页面的人都可以点击上传。正式推广前，需要确保只在可信内网开放；如果必须仅管理员上传，后续还需要增加登录或访问控制。
