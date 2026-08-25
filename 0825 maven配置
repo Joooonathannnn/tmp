@@ -1,0 +1,3 @@
+cd "你的目录\feedback-server"
+mvn clean package -e 2>&1 | Tee-Object "$env:TEMP\maven-build-error.txt"
+notepad "$env:TEMP\maven-build-error.txt"
