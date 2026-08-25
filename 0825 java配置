@@ -1,28 +1,58 @@
-先不要重新安装。`mvn -version` 能运行，说明 Maven 使用的 Java 很可能正常；`java -version` 可能调用了 `Path` 中另一套损坏或过旧的 Java。
+这些环境变量命令如果“没有输出”，就表示没有配置，属于正常情况。
 
-请在 PowerShell 依次运行，并把完整结果发给我：
+现在只需要比较 Maven 和命令行使用的是不是同一个 Java。
+
+运行：
 
 ```powershell
-where.exe java
-where.exe mvn
-$env:JAVA_HOME
-& "$env:JAVA_HOME\bin\java.exe" -version
+$pathJava = (Get-Item (Get-Command java.exe).Source).FullName
+$homeJava = (Get-Item (Join-Path $env:JAVA_HOME "bin\java.exe")).FullName
+
+$pathJava
+$homeJava
+$pathJava -eq $homeJava
+```
+
+最后一行会显示 `True` 或 `False`。
+
+如果显示 `False`
+
+说明 `Path` 指向了另一套 Java。打开“系统环境变量”：
+
+- `JAVA_HOME` 设置成 JDK 根目录，例如：
+
+```text
+C:\Java\jdk1.8.0_352
+```
+
+不要带引号，也不要加 `\bin`。
+
+- 在 `Path` 中删除原来的 Java 路径，添加：
+
+```text
+%JAVA_HOME%\bin
+```
+
+将它移到靠前位置。关闭全部 PowerShell，再重新打开并执行：
+
+```powershell
+java -version
 mvn -version
 ```
 
-再检查有没有错误的全局 JVM 参数：
+如果显示 `True`
+
+运行下面的命令：
 
 ```powershell
-Get-Item Env:_JAVA_OPTIONS -ErrorAction SilentlyContinue
-Get-Item Env:JAVA_TOOL_OPTIONS -ErrorAction SilentlyContinue
-Get-Item Env:JDK_JAVA_OPTIONS -ErrorAction SilentlyContinue
+java -version 2>&1 | Set-Content "$env:TEMP\java-error.txt"
+notepad "$env:TEMP\java-error.txt"
 ```
 
-重点看：
+重点看 `Could not create the Java Virtual Machine` 上面的第一行，一般会写出真正原因，例如：
 
-- `where.exe java` 是否显示多个 `java.exe`
-- `mvn -version` 中的 `Java home` 指向哪里
-- 直接运行 `$env:JAVA_HOME\bin\java.exe` 是否正常
-- 报错前面是否还有类似 `Unrecognized option` 的提示
+```text
+Unrecognized option: 某个参数
+```
 
-把这些结果贴出来，就能准确判断该改 `Path`、`JAVA_HOME`，还是删除错误的 JVM 参数。
+你只需要把这第一行手动告诉我即可。
