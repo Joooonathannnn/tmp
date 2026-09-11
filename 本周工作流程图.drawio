@@ -1,0 +1,102 @@
+<mxfile host="app.diagrams.net" modified="2026-09-11T00:00:00.000Z" agent="Codex" version="24.7.17" type="device">
+  <diagram id="weekly-workflow" name="本周工作流程">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="本周分析类题目测评与优化流程" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="350" y="30" width="700" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="tools" value="&lt;b&gt;工具协同&lt;/b&gt;&lt;br&gt;Codex + Cowork" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F0FE;strokeColor=#4F81BD;fontColor=#1F2937;fontSize=15;arcSize=18;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="125" width="190" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="assessment" value="&lt;b&gt;完成题目测评&lt;/b&gt;&lt;br&gt;36 道分析类题目" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEEFF;strokeColor=#3B82F6;fontColor=#1F2937;fontSize=15;arcSize=18;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="295" y="125" width="210" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="summary" value="&lt;b&gt;结果汇总与初步分析&lt;/b&gt;&lt;br&gt;识别异常与典型问题" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontColor=#1F2937;fontSize=15;arcSize=18;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="560" y="125" width="230" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="split" value="分层选取问题样本" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontColor=#1F2937;fontSize=14;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="865" y="115" width="150" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="promptGroup" value="&lt;b&gt;Prompt 优化路径&lt;/b&gt;" style="swimlane;html=1;rounded=1;startSize=36;horizontal=1;fillColor=#F5F3FF;swimlaneFillColor=#FAFAFA;strokeColor=#7C3AED;fontColor=#5B21B6;fontSize=16;fontStyle=1;arcSize=10;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="165" y="285" width="540" height="270" as="geometry" />
+        </mxCell>
+
+        <mxCell id="deepAnalysis" value="&lt;b&gt;深度排查 10+ 道问题题目&lt;/b&gt;&lt;br&gt;运行轨迹 · 思考过程 · 中间产物" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#8B5CF6;fontColor=#1F2937;fontSize=14;arcSize=15;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="195" y="350" width="220" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="promptIssue" value="&lt;b&gt;定位 Prompt 不足&lt;/b&gt;&lt;br&gt;指令、约束与任务边界" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#9333EA;fontColor=#1F2937;fontSize=14;arcSize=15;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="465" y="350" width="205" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="promptIterate" value="&lt;b&gt;多轮迭代优化&lt;/b&gt;&lt;br&gt;调整 Prompt 并持续验证" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;fontColor=#1F2937;fontSize=14;arcSize=15;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="325" y="465" width="220" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="harnessGroup" value="&lt;b&gt;Harness 分析路径&lt;/b&gt;" style="swimlane;html=1;rounded=1;startSize=36;horizontal=1;fillColor=#ECFDF5;swimlaneFillColor=#FAFAFA;strokeColor=#059669;fontColor=#047857;fontSize=16;fontStyle=1;arcSize=10;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="760" y="285" width="500" height="270" as="geometry" />
+        </mxCell>
+
+        <mxCell id="typicalCases" value="&lt;b&gt;选取 3 道典型题目&lt;/b&gt;&lt;br&gt;聚焦共性与关键失效场景" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#10B981;fontColor=#1F2937;fontSize=14;arcSize=15;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="790" y="350" width="205" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="harnessAnalysis" value="&lt;b&gt;详细分析 Harness 不足&lt;/b&gt;&lt;br&gt;任务执行 · 过程控制 · 结果评估" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CCFBF1;strokeColor=#0D9488;fontColor=#1F2937;fontSize=14;arcSize=15;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1025" y="350" width="205" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="harnessImprove" value="&lt;b&gt;形成改进建议&lt;/b&gt;&lt;br&gt;为后续机制完善提供依据" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D1FAE5;strokeColor=#059669;fontColor=#1F2937;fontSize=14;arcSize=15;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="900" y="465" width="220" height="65" as="geometry" />
+        </mxCell>
+
+        <mxCell id="closedLoop" value="&lt;b&gt;形成“测评—分析—优化”闭环&lt;/b&gt;&lt;br&gt;提升分析类任务的稳定性与可靠性" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#EA580C;fontColor=#1F2937;fontSize=16;arcSize=20;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="510" y="630" width="390" height="85" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="tools" target="assessment">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="assessment" target="summary">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=2;" edge="1" parent="1" source="summary" target="split">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="10+ 道问题题目" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#7C3AED;strokeWidth=2;fontColor=#5B21B6;fontSize=13;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="split" target="deepAnalysis">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="720" y="250" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="3 道典型题目" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#059669;strokeWidth=2;fontColor=#047857;fontSize=13;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="split" target="typicalCases">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#8B5CF6;strokeWidth=2;" edge="1" parent="1" source="deepAnalysis" target="promptIssue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#7C3AED;strokeWidth=2;" edge="1" parent="1" source="promptIssue" target="promptIterate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#10B981;strokeWidth=2;" edge="1" parent="1" source="typicalCases" target="harnessAnalysis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#059669;strokeWidth=2;" edge="1" parent="1" source="harnessAnalysis" target="harnessImprove">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#EA580C;strokeWidth=2;" edge="1" parent="1" source="promptIterate" target="closedLoop">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#EA580C;strokeWidth=2;" edge="1" parent="1" source="harnessImprove" target="closedLoop">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
