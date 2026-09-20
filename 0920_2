@@ -1,0 +1,34 @@
+你现在可以先做一个**低成本版本**，不要一开始就追求精确定位每条轨迹的“第一错误步”。
+
+1. **先把长轨迹结构化压缩**：把几百万/几千万 token 压成“每轮一个 state-action 记录”，保留轮次、关键决策、资源状态、约束状态、objective/bound、剩余任务等；reasoning 暂时不作为主要分析对象。
+
+2. **先找显性失败信号**：对每轮计算或抽取一些指标，比如约束违反、capacity/time-window slack、剩余资源、feasible action 数量、objective gap。先找到“什么时候开始明显恶化”，得到一个粗粒度的 `critical region`，例如第 180–220 轮，而不是强求精确到第 193 轮。
+
+3. **有 solver 的话做 checkpoint / replay**：从若干中间状态重新求解，判断
+\[
+\exists \text{ feasible completion from }s_t?
+\]
+先按 50 轮或 20 轮间隔检查，再在“可行→不可行”的区间里二分。这样可以定位 **point of no return**，而不用逐轮读轨迹。
+
+4. **给失败轨迹做粗分桶，而不是精确打分**。第一版可以只有：
+   - 成功轨迹；
+   - 晚期失败 / near-success；
+   - 中期失败但可恢复；
+   - 早期进入不可恢复状态；
+   - 最终可行但 objective 很差。  
+   再记录几个辅助字段：`critical_region`、`repairable`、`remaining_horizon`、`objective_gap`、`failure_type`。
+
+5. **据此做 curriculum 实验**：早期以成功轨迹和 near-success 为主，中期逐渐增加可恢复失败，后期再加入长程失败和 hard negative。不要完全切换阶段，而是改变采样比例，例如：
+```text
+早期：成功 60% + near-success 30% + 其他 10%
+中期：成功 30% + near-success 30% + recoverable 25% + hard 15%
+后期：成功 15% + near-success 20% + recoverable 30% + long-horizon/hard 35%
+```
+
+你后面如果发现这种粗分桶确实有效，再进一步做 **step-level refinement**：只针对高价值失败轨迹，定位关键错误动作，并构造“同一 prefix 下 bad action vs better action”的训练样本。
+
+所以你现在最值得先做的是这条最小闭环：
+
+> **轨迹压缩 → 找 critical region → 判断可恢复性 → 粗分桶 → 按桶设置采样 curriculum → 做训练对照实验。**
+
+先验证“失败位置/可恢复性是否真的能带来训练收益”，再决定要不要投入大量成本去精确算 repair distance。
