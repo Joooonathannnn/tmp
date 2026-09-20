@@ -1,0 +1,259 @@
+可以。既然你**能从中间状态重新求解**，那最自然的思路不是把“整条几百轮轨迹”直接当一条训练样本，而是把一条长轨迹**切成很多局部决策样本**。
+
+核心可以变成：
+
+> 原始长轨迹 → 选关键中间状态 → 从该状态重新求解 → 得到更优 continuation → 构造成“状态—动作—后续结果”的训练数据。
+
+比如原始失败轨迹是：
+
+```text
+s0 → a0 → s1 → a1 → s2 → a2 → ... → s300
+```
+
+你发现大概从 `s180` 开始质量明显下降，那么不需要把 300 轮全塞进一条训练样本。可以选：
+
+```text
+s160
+s170
+s180
+s190
+```
+
+分别重新求解。
+
+假设在 `s180`：
+
+```text
+原轨迹：
+s180 → a_bad → ... → 最终得分 62
+
+重新求解：
+s180 → a_good → ... → 最终得分 91
+```
+
+那 `s180` 本身就可以构成一条非常高质量的训练样本。
+
+如果你做 **SFT**，可以直接训练：
+
+```text
+Input:
+当前运筹状态 s180
+
+Target:
+正确的下一步动作 a_good
+```
+
+或者如果你希望模型学习完整规划，可以是：
+
+```text
+Input:
+当前状态 s180
+
+Target:
+a_good
+→ observation
+→ 下一步动作
+→ ...
+→ 完整高质量 continuation
+```
+
+但我更建议第一版优先做**短 continuation / 下一步决策**，因为整条 continuation 又会变得很长。
+
+---
+
+如果你做 **Preference / DPO 类训练**，这个场景就更天然。
+
+同一个状态：
+
+```text
+Prompt / State:
+s180
+```
+
+构造成：
+
+```text
+Chosen:
+a_good
+或更优 continuation
+
+Rejected:
+a_bad
+或原失败 continuation
+```
+
+也就是：
+
+\[
+(s_t,\tau^+,\tau^-)
+\]
+
+其中：
+
+\[
+\tau^+ = \text{solver重新求出的更优轨迹}
+\]
+
+\[
+\tau^- = \text{原始失败/低分轨迹}
+\]
+
+这类数据比“单纯告诉模型标准答案”更充分地利用了你的失败轨迹。
+
+---
+
+如果你后面做 RL / GRPO，那么中间状态本身还可以直接变成新的训练环境起点：
+
+```text
+原始任务
+↓
+跑到 s180
+↓
+把 s180 保存成 checkpoint
+↓
+训练时从 s180 开始 rollout
+↓
+模型生成多个 continuation
+↓
+比较最终 feasibility / score
+↓
+算 reward
+```
+
+这实际上就是一种 **state curriculum**。
+
+你不再每次都让模型从第 0 轮开始，而是可以：
+
+```text
+容易阶段：
+从接近终点的状态开始
+
+中等阶段：
+从关键点附近开始
+
+困难阶段：
+从更早状态开始
+
+最终：
+从完整初始状态开始
+```
+
+这个和你前面问的 curriculum 就真正接上了。
+
+---
+
+所以整个训练数据，我建议你分成三种类型，而不是只有一种：
+
+| 数据类型 | 输入 | 输出/标签 | 用途 |
+|---|---|---|---|
+| Expert SFT | 中间状态 \(s_t\) | solver 的好动作/好 continuation | 教模型怎么做 |
+| Preference Pair | 同一个 \(s_t\) | good vs bad | 教模型区分好坏 |
+| Rollout Start State | \(s_t\) checkpoint | 无固定答案，重新 rollout | RL / GRPO curriculum |
+
+这样一条失败轨迹可以被“榨”出很多数据。
+
+比如原始一条 300 轮轨迹，可以选出：
+
+```text
+s120：仍然很健康
+s160：开始出现风险
+s180：关键退化区间
+s200：低分已基本锁定
+s230：不可恢复
+```
+
+然后分别生成：
+
+```text
+s120 → 正常高质量 continuation
+s160 → 局部修正 continuation
+s180 → 明显纠偏 continuation
+s200 → 是否还能改善
+s230 → hard negative / 不作为正样本
+```
+
+这就比“整条 trajectory = 一条样本”合理很多。
+
+---
+
+你还可以进一步给每条局部样本加 metadata：
+
+```json
+{
+  "state_id": "traj_17_step_180",
+  "source_trajectory": "traj_17",
+  "step": 180,
+  "feasible": true,
+  "best_achievable_score": 91.2,
+  "original_final_score": 62.4,
+  "repair_gain": 28.8,
+  "remaining_horizon": 120,
+  "difficulty": "medium",
+  "sample_type": "preference"
+}
+```
+
+其中特别有价值的是：
+
+\[
+\text{repair gain}
+=
+\text{重新求解后的最好分数}
+-
+\text{原轨迹最终分数}
+\]
+
+这个值很直观：
+
+- `repair_gain ≈ 0`：原轨迹其实没太大问题；
+- `repair_gain` 很大：这个状态非常值得学习；
+- 已无法提高：可能已经过了 point of no return。
+
+所以你甚至可以用它筛训练数据。
+
+---
+
+最后把它串成完整流水线，大概就是：
+
+```text
+原始成功/失败轨迹
+        ↓
+轨迹压缩成 state-action 序列
+        ↓
+选 checkpoint
+        ↓
+从 checkpoint 重新求解
+        ↓
+得到 best / improved continuation
+        ↓
+和原 continuation 比较
+        ↓
+计算 feasibility、score gap、repair gain
+        ↓
+生成三类数据：
+SFT / Preference / RL start states
+        ↓
+再按 difficulty 做 curriculum sampling
+```
+
+而 curriculum 可以按：
+
+\[
+\text{remaining horizon}
+\]
+
+\[
+\text{repair gain}
+\]
+
+\[
+\text{best achievable score}
+\]
+
+\[
+\text{当前模型 success rate}
+\]
+
+综合组织。
+
+这样你就不用解决“整条几千万 token 轨迹怎么直接训练”这个问题了。**真正的训练单位变成中间状态及其 continuation，而不是整条原始轨迹。**
