@@ -1,0 +1,2686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>长轨迹训练数据与 Curriculum 构建调研报告</title>
+
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #1f2937;
+      --sub: #6b7280;
+      --line: #e5e7eb;
+      --accent: #2563eb;
+      --accent-light: #eff6ff;
+      --green: #047857;
+      --green-light: #ecfdf5;
+      --orange: #b45309;
+      --orange-light: #fffbeb;
+      --red: #b91c1c;
+      --red-light: #fef2f2;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI",
+        "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.78;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #111827, #1e3a8a);
+      color: white;
+      border-radius: 20px;
+      padding: 42px 46px;
+      margin-bottom: 28px;
+      box-shadow: 0 12px 35px rgba(0,0,0,.12);
+    }
+
+    .hero h1 {
+      margin: 0 0 14px;
+      font-size: 34px;
+      line-height: 1.25;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 930px;
+      color: #dbeafe;
+      font-size: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 28px 30px;
+      margin-bottom: 24px;
+      box-shadow: 0 5px 18px rgba(0,0,0,.035);
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 18px;
+      font-size: 24px;
+      border-left: 5px solid var(--accent);
+      padding-left: 12px;
+    }
+
+    h3 {
+      margin-top: 28px;
+      margin-bottom: 12px;
+      font-size: 19px;
+    }
+
+    h4 {
+      margin-top: 20px;
+      margin-bottom: 8px;
+      font-size: 16px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    ul, ol {
+      padding-left: 24px;
+    }
+
+    li {
+      margin: 6px 0;
+    }
+
+    a {
+      color: #2563eb;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .highlight {
+      background: var(--accent-light);
+      border-left: 4px solid var(--accent);
+      padding: 16px 18px;
+      border-radius: 8px;
+      margin: 18px 0;
+    }
+
+    .good {
+      background: var(--green-light);
+      border-left-color: var(--green);
+    }
+
+    .warning {
+      background: var(--orange-light);
+      border-left-color: var(--orange);
+    }
+
+    .danger {
+      background: var(--red-light);
+      border-left-color: var(--red);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f3f4f6;
+      text-align: left;
+      font-weight: 650;
+    }
+
+    tr:nth-child(even) td {
+      background: #fafafa;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 5px;
+    }
+
+    pre {
+      background: #111827;
+      color: #e5e7eb;
+      padding: 20px;
+      border-radius: 12px;
+      overflow-x: auto;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    blockquote {
+      margin: 16px 0;
+      padding: 12px 18px;
+      border-left: 4px solid #9ca3af;
+      background: #f9fafb;
+      color: #374151;
+    }
+
+    .stars {
+      color: #f59e0b;
+      white-space: nowrap;
+    }
+
+    .formula {
+      text-align: center;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 19px;
+      padding: 12px;
+      margin: 14px 0;
+      background: #f9fafb;
+      border-radius: 8px;
+    }
+
+    .flow {
+      background: #111827;
+      color: #f9fafb;
+      border-radius: 14px;
+      padding: 24px;
+      white-space: pre-wrap;
+      font-family: Consolas, monospace;
+      line-height: 1.75;
+    }
+
+    .meta {
+      color: var(--sub);
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .footer {
+      color: var(--sub);
+      font-size: 13px;
+      text-align: center;
+      margin-top: 36px;
+    }
+
+    @media (max-width: 720px) {
+      .hero {
+        padding: 30px 24px;
+      }
+
+      .hero h1 {
+        font-size: 27px;
+      }
+
+      .card {
+        padding: 22px 20px;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+<section class="hero">
+  <h1>长轨迹训练数据与 Curriculum 构建调研报告</h1>
+  <p>
+    面向超长运筹 / Agent 决策轨迹，重点研究三个问题：
+    如何从已有失败或低分轨迹中选择值得训练的中间状态；
+    如何从中间状态重新生成具有学习价值的轨迹；
+    如何依据当前模型的 rollout 表现构建动态 Curriculum。
+  </p>
+</section>
+
+
+<section class="card">
+<h2>1. 调研问题与核心结论</h2>
+
+<p>
+当前场景的特点是：单条轨迹可能包含数百轮决策和数百万甚至数千万 Token；
+已有大量失败轨迹，以及“最终能够完成但得分较低”的轨迹；
+环境允许恢复到某个中间状态，并从该状态继续求解。
+最终目的不是单纯分析失败原因，而是把这些历史轨迹转化为真正可用于模型训练的数据。
+</p>
+
+<div class="highlight">
+<strong>当前设想可以概括为：</strong><br><br>
+
+失败 / 低分长轨迹
+→ 找高影响关键状态
+→ 从关键状态重新 rollout
+→ 得到多条不同质量的 continuation
+→ 根据 rollout 分布估计状态难度
+→ 将高质量 / 低质量 continuation 转换为训练数据
+→ 按难度组织 Curriculum。
+</div>
+
+<p>
+目前没有发现一篇论文完整覆盖这条链路，但近两年的多篇工作分别解决了其中不同环节。
+最相关的方法包括：
+</p>
+
+<table>
+<thead>
+<tr>
+  <th>论文</th>
+  <th>年份 / 来源</th>
+  <th>主要解决的问题</th>
+  <th>轨迹数据如何产生</th>
+  <th>相关度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>CRPS</strong></td>
+  <td>ACL Findings 2026</td>
+  <td>长 Horizon 下大量 rollout 全失败，缺少有效 RL 信号</td>
+  <td>保存成功轨迹，从其中间 suffix state 恢复，再由当前 policy 重新 rollout</td>
+  <td class="stars">★★★★★</td>
+</tr>
+
+<tr>
+  <td><strong>Watch Every Step / IPR</strong></td>
+  <td>EMNLP 2024</td>
+  <td>只有最终 reward，无法知道中间 action 是否正确</td>
+  <td>沿 expert trajectory 到某一步，再从该状态进行 Monte Carlo rollout</td>
+  <td class="stars">★★★★★</td>
+</tr>
+
+<tr>
+  <td><strong>PaTR</strong></td>
+  <td>2026 Preprint</td>
+  <td>每条轨迹从头 rollout 浪费大量预算</td>
+  <td>在高价值 intermediate state 上 branch，形成 rollout tree</td>
+  <td class="stars">★★★★★</td>
+</tr>
+
+<tr>
+  <td><strong>AgentRx</strong></td>
+  <td>Microsoft Research 2026</td>
+  <td>长失败轨迹中真正失败起点难定位</td>
+  <td>不生成新轨迹；逐步检查已有轨迹，定位 critical failure step</td>
+  <td class="stars">★★★★★</td>
+</tr>
+
+<tr>
+  <td><strong>DAPO</strong></td>
+  <td>NeurIPS 2025</td>
+  <td>全对或全错 rollout group 没有有效 advantage</td>
+  <td>同一任务多次 rollout，根据正确率动态过滤极端 group</td>
+  <td class="stars">★★★★☆</td>
+</tr>
+
+<tr>
+  <td><strong>SPEAR</strong></td>
+  <td>ICLR 2026</td>
+  <td>探索与历史成功轨迹利用之间如何平衡</td>
+  <td>将历史高优势轨迹存入 replay buffer，并持续 self-imitation</td>
+  <td class="stars">★★★★☆</td>
+</tr>
+
+<tr>
+  <td><strong>AgentGym-RL / ScalingInter-RL</strong></td>
+  <td>2025</td>
+  <td>直接训练长交互 Horizon 太困难</td>
+  <td>逐步增加允许的 interaction rounds</td>
+  <td class="stars">★★★☆☆</td>
+</tr>
+</tbody>
+</table>
+</section>
+
+
+
+<section class="card">
+<h2>2. CRPS：从成功轨迹中间状态重新开始，并动态调节难度</h2>
+
+<div class="meta">
+论文：
+<a href="https://aclanthology.org/2026.findings-acl.680/" target="_blank">
+CRPS: Curriculum Replay via Progressive Suffixes from Successful Trajectories for Long-Horizon LLM Agents
+</a>
+</div>
+
+<h3>2.1 问题背景</h3>
+
+<p>
+CRPS 针对的是 long-horizon Agent reinforcement learning。
+在这类任务中 reward 往往只在最终任务完成时给出，因此训练初期很容易出现：
+</p>
+
+<pre>
+同一个任务 rollout 8 次：
+
+0 0 0 0 0 0 0 0
+</pre>
+
+<p>
+对于 GRPO 一类依赖组内 reward 差异计算 advantage 的方法，
+如果同组轨迹全部失败，则很难获得有区分度的训练信号。
+相反，如果任务太简单：
+</p>
+
+<pre>
+1 1 1 1 1 1 1 1
+</pre>
+
+<p>
+同样没有有效的组内差异。
+因此 CRPS 的核心目标，是让训练中的任务持续处于“不是全会，也不是完全不会”的区间。
+</p>
+
+
+<h3>2.2 Success Buffer 保存什么？</h3>
+
+<p>
+CRPS 仍然先让当前 policy 从正常初始状态完成完整 rollout。
+如果偶然产生一条成功轨迹，就将其保存。
+一条成功轨迹可以写为：
+</p>
+
+<div class="formula">
+τ = (x, z, T, {(o₀,a₀), (o₁,a₁), ..., (o<sub>T−1</sub>,a<sub>T−1</sub>)})
+</div>
+
+<p>其中：</p>
+
+<ul>
+  <li><strong>x</strong>：任务 instruction；</li>
+  <li><strong>z</strong>：环境初始化或能够恢复环境的信息，例如随机 seed；</li>
+  <li><strong>T</strong>：成功轨迹长度；</li>
+  <li><strong>o<sub>t</sub></strong>：第 t 步 observation；</li>
+  <li><strong>a<sub>t</sub></strong>：第 t 步 action。</li>
+</ul>
+
+<p>
+因此，Success Buffer 不是仅保存最终回答，而是保存能够重新恢复和 replay 的完整交互轨迹。
+</p>
+
+
+<h3>2.3 不是所有成功轨迹都同等重要</h3>
+
+<p>
+论文会计算同一个任务在当前 policy 下的经验成功率：
+</p>
+
+<div class="formula">
+acc(x) = (1 / G) Σ 1[R<sup>(g)</sup> = 1]
+</div>
+
+<p>
+其中 G 表示该任务的 rollout group 大小。
+如果一个任务几乎每次都成功，它已经比较简单；
+如果每次都失败，则当前模型可能还无法有效学习。
+因此 CRPS 更关注处于模型当前能力边界附近的任务。
+</p>
+
+
+<h3>2.4 从成功轨迹的 suffix state 开始</h3>
+
+<p>
+假设一条成功轨迹长度为 T，CRPS 选择一个 suffix length k，
+从：
+</p>
+
+<div class="formula">
+t₀ = max(0, T − k)
+</div>
+
+<p>
+对应的状态恢复。
+</p>
+
+<pre>
+完整成功轨迹：
+
+s0 → s1 → ... → s60 → s70 → s80 → success
+                          ↑
+                        restore
+
+从 s70 开始：
+    ├── rollout 1
+    ├── rollout 2
+    ├── rollout 3
+    └── rollout 4
+</pre>
+
+<p>
+注意，这些新的 continuation 仍然由<strong>当前最新 policy</strong>生成，
+不是简单复刻原成功轨迹。
+因此新的 suffix trajectory 仍然是新的训练数据。
+</p>
+
+
+<h3>2.5 为什么 suffix length 可以作为 Curriculum 难度？</h3>
+
+<p>
+因为：
+</p>
+
+<pre>
+k 小
+→ 离终点近
+→ 剩余决策步骤少
+→ 子任务相对简单
+
+k 大
+→ 起点更靠前
+→ 剩余决策步骤多
+→ 需要更长 Horizon 的规划
+→ 更难
+</pre>
+
+<p>
+因此 CRPS 的 Curriculum 不是人工给任务打 Easy / Hard 标签，
+而是通过控制剩余 Horizon 自动形成难度。
+</p>
+
+
+<h3>2.6 suffix 难度是动态调整的</h3>
+
+<p>
+论文会统计当前模型从某个 suffix state 出发后的 replay success rate：
+</p>
+
+<div class="formula">
+acc<sub>replay</sub>(x)
+=
+(1/G) Σ 1[R<sup>(g)</sup> = 1]
+</div>
+
+<p>
+随后使用指数移动平均跟踪某个 k 下的经验成功率：
+</p>
+
+<div class="formula">
+ρ̂<sub>k</sub>
+←
+(1 − λ)ρ̂<sub>k</sub>
++
+λ · acc<sub>replay</sub>(x)
+</div>
+
+<p>
+再通过目标成功率区间控制 k：
+</p>
+
+<pre>
+如果 replay success rate 太高：
+→ 当前 suffix 太容易
+→ 增大 k
+→ 起点向前移动
+→ 任务变难
+
+如果 replay success rate 太低：
+→ 当前 suffix 太难
+→ 减小 k
+→ 起点向终点移动
+→ 任务变简单
+</pre>
+
+<p>
+因此 CRPS 实际使用的是一种<strong>online adaptive curriculum</strong>，
+而不是固定的数据顺序。
+</p>
+
+
+<h3>2.7 初始难度也根据当前模型能力确定</h3>
+
+<p>
+论文使用任务当前成功率 acc(x) 和轨迹长度 T 来初始化 suffix 长度，
+形式上可以表示为：
+</p>
+
+<div class="formula">
+k₀ =
+clip(
+⌊(β<sub>min</sub> + (β<sub>max</sub> − β<sub>min</sub>)acc(x))T⌋,
+k<sub>min</sub>,
+k<sub>max</sub>
+)
+</div>
+
+<p>
+直觉是：
+</p>
+
+<pre>
+任务当前成功率低
+→ 从靠近终点的位置开始
+→ 给模型较短、较容易的 suffix
+
+任务当前成功率较高
+→ 从更靠前的位置开始
+→ 增加剩余 Horizon
+</pre>
+
+
+<h3>2.8 CRPS 不会完全替代 Fresh Exploration</h3>
+
+<p>
+训练数据来自两个来源：
+</p>
+
+<pre>
+Fresh Exploration
+从完整任务初始状态 rollout
+
++
+
+Curriculum Replay
+从 Success Buffer 中的中间 state rollout
+</pre>
+
+<p>
+这样做是为了避免模型只模仿过去已经发现的少数成功路径。
+</p>
+
+
+<h3>2.9 实验发现</h3>
+
+<p>
+论文在 ALFWorld、WebShop 等长交互环境中测试，
+结果显示相对于直接 full-episode GRPO 和简单 replay，
+CRPS 能够：
+</p>
+
+<ul>
+  <li>提高任务成功率；</li>
+  <li>减少一组 rollout 全成功或全失败的极端情况；</li>
+  <li>让更多训练 batch 产生有效 advantage；</li>
+  <li>提高长 Horizon 任务上的样本效率。</li>
+</ul>
+
+
+<div class="highlight good">
+<strong>对当前运筹项目最直接的迁移：</strong><br><br>
+
+CRPS：
+成功轨迹
+→ suffix state
+→ 当前 policy 重新 rollout
+→ 用 replay success rate 动态控制难度。
+
+<br><br>
+
+可以扩展成：
+
+失败 / 低分轨迹
+→ 找仍然具有纠偏空间的关键 state
+→ 当前 policy 重新 rollout
+→ 用高质量解比例、平均得分、成功率估计 state difficulty
+→ 动态 Curriculum。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>3. Watch Every Step / IPR：用 Monte Carlo Rollout 得到 Step-Level 训练信号</h2>
+
+<div class="meta">
+论文：
+<a href="https://aclanthology.org/2024.emnlp-main.93/" target="_blank">
+Watch Every Step! LLM Agent Learning via Iterative Step-level Process Refinement
+</a>
+</div>
+
+
+<h3>3.1 为什么只看最终 Reward 不够？</h3>
+
+<p>
+假设 Agent 最终成功：
+</p>
+
+<pre>
+a1 → a2 → a3 → a4 → a5 → success
+                           reward = 1
+</pre>
+
+<p>
+仅仅根据最终 reward=1，
+无法判断中间的 a2、a3 是否本身是好动作。
+它们有可能很差，只是模型后来又纠正了。
+同理，一条最终失败的 trajectory，
+前面的大量动作可能其实是正确的。
+</p>
+
+<p>
+因此论文希望估计：
+</p>
+
+<div class="formula">
+r<sub>s</sub>(s<sub>t</sub>, a<sub>t</sub>)
+</div>
+
+<p>
+即某一个中间 state-action pair 对最终任务结果的长期贡献。
+</p>
+
+
+<h3>3.2 Step Reward 是怎么获得的？</h3>
+
+<p>
+论文没有人工逐步标注，而是使用 Monte Carlo rollout。
+在状态 s<sub>t</sub> 采取动作 a<sub>t</sub> 后，
+从这里继续采样 N 条完整 trajectory：
+</p>
+
+<pre>
+                    (s_t, a_t)
+                   /    |    \
+                 τ1     τ2     τ3 ... τN
+                 ↓      ↓      ↓
+                R1     R2     R3
+</pre>
+
+<p>
+然后通过最终 outcome reward 的平均值近似 step reward：
+</p>
+
+<div class="formula">
+r<sub>s</sub>(s<sub>t</sub>,a<sub>t</sub>)
+≈
+(1/N) Σ r<sub>o</sub>(u,e<sup>(i)</sup>)
+</div>
+
+<p>
+也就是说：
+</p>
+
+<blockquote>
+如果在某个 state 采取某个 action 以后，
+后续经常能够得到成功或高 reward，
+那么这个 action 的长期价值较高。
+</blockquote>
+
+
+<h3>3.3 轨迹从哪里来？</h3>
+
+<p>
+IPR 先使用 expert trajectories 对 Agent 进行 SFT，
+得到一个基础 scorer / policy。
+之后沿 expert trajectory 逐步探索。
+</p>
+
+<p>
+假设 expert trajectory 为：
+</p>
+
+<pre>
+a1* → a2* → a3* → a4* → ... → success
+</pre>
+
+<p>
+到第 t 步之前，使用 expert prefix：
+</p>
+
+<pre>
+a1* → a2* → ... → a(t-1)*
+</pre>
+
+<p>
+到第 t 步时，不再强制采用 expert action，
+而让当前 Agent 自己产生动作：
+</p>
+
+<pre>
+                  s_t
+               /       \
+        expert action   current action
+            a_t*             â_t
+</pre>
+
+<p>
+之后分别对 expert action 和当前 action 做 Monte Carlo continuation，
+得到：
+</p>
+
+<div class="formula">
+r<sub>s</sub>(s<sub>t</sub>, a<sub>t</sub><sup>*</sup>)
+</div>
+
+<div class="formula">
+r<sub>s</sub>(s<sub>t</sub>, â<sub>t</sub>)
+</div>
+
+
+<h3>3.4 什么时候构造 Good / Bad Pair？</h3>
+
+<p>
+IPR 并不会因为 current action 和 expert action 不一样，
+就简单认为 current action 是错的。
+论文要求 current action 在 step-level reward 上明显差于 expert action，
+并且最终 outcome 也更差，
+才把这对轨迹纳入 contrastive training data。
+</p>
+
+<p>
+因此最终可以形成：
+</p>
+
+<pre>
+相同 prefix / state：
+
+Chosen:
+expert action
+→ 高 step reward continuation
+
+Rejected:
+current agent action
+→ 低 step reward continuation
+</pre>
+
+
+<h3>3.5 最终训练数据是什么形式？</h3>
+
+<p>
+论文构造两类 contrastive dataset。
+</p>
+
+<h4>Step-level dataset</h4>
+
+<div class="formula">
+D<sub>s</sub>
+=
+{
+(e<sub>t−1</sub>,
+ e<sup>w</sup><sub>t:n</sub>,
+ e<sup>l</sup><sub>t:m</sub>)
+}
+</div>
+
+<p>
+表示：
+</p>
+
+<pre>
+相同历史 prefix
+
+Winner continuation
+vs.
+Loser continuation
+</pre>
+
+
+<h4>Outcome-level dataset</h4>
+
+<div class="formula">
+D<sub>t</sub>
+=
+{
+(u,
+ e<sup>w</sup>,
+ e<sup>l</sup>)
+}
+</div>
+
+<p>
+即整条成功轨迹与整条失败轨迹的偏好对。
+</p>
+
+
+<h3>3.6 最终怎么训练模型？</h3>
+
+<p>
+IPR 使用多个损失联合训练：
+</p>
+
+<div class="formula">
+L =
+L<sub>outcome-DPO</sub>
++
+L<sub>step-DPO</sub>
++
+L<sub>SFT</sub>
+</div>
+
+<p>
+其中：
+</p>
+
+<ul>
+  <li><strong>Outcome-DPO</strong>：学习整体成功轨迹优于失败轨迹；</li>
+  <li><strong>Step-DPO</strong>：学习相同历史下，高价值局部 continuation 优于低价值 continuation；</li>
+  <li><strong>SFT</strong>：提高高质量轨迹本身的生成概率。</li>
+</ul>
+
+
+<h3>3.7 实验</h3>
+
+<p>
+论文在 WebShop、InterCodeSQL、ALFWorld 等交互任务上进行测试，
+并报告相对于对比方法取得了明显提升。
+其最重要的实验意义不是具体提升百分点，
+而是证明：
+</p>
+
+<div class="highlight">
+<strong>
+通过从中间 state 多次 Monte Carlo rollout，
+可以把原本只有 terminal reward 的 trajectory
+转换成 step-level supervision。
+</strong>
+</div>
+
+
+<div class="highlight good">
+<strong>对当前项目的直接迁移：</strong><br><br>
+
+找到关键 state s180 后：
+
+s180
+→ rollout N 次
+→ 得到多个不同最终 score
+
+然后不仅可以判断“这个 state 难不难”，
+还可以进一步估计：
+
+某个 action 之后的 expected downstream score。
+
+<br><br>
+
+于是可以生成：
+
+(state, good action, bad action)
+
+或者：
+
+(state, good continuation, bad continuation)
+
+用于 Preference / DPO / Process Reward Model。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>4. PaTR：不从头重复 Rollout，而是在有价值的中间状态构建 Rollout Tree</h2>
+
+<div class="meta">
+论文：
+<a href="https://arxiv.org/abs/2607.15610" target="_blank">
+Process Reward Informed Tree Rollout for Effective Multi-Turn RL
+</a>
+</div>
+
+
+<h3>4.1 传统 Rollout 为什么浪费？</h3>
+
+<p>
+传统 group rollout：
+</p>
+
+<pre>
+task x
+├── complete rollout 1
+├── complete rollout 2
+├── complete rollout 3
+├── complete rollout 4
+└── complete rollout 5
+</pre>
+
+<p>
+每条轨迹都从起点重新生成。
+对于几百轮甚至更长的 trajectory，
+不同 rollout 前面可能有大量重复或相似决策，
+这部分计算实际上被反复浪费。
+</p>
+
+
+<h3>4.2 PaTR 把 Rollout 组织成一棵树</h3>
+
+<pre>
+                 s0
+                  ↓
+                 s1
+                  ↓
+                 s2
+             /    |    \
+           s3a   s3b   s3c
+           / \          |
+         ... ...       ...
+</pre>
+
+<p>
+方法维护一组 active branches。
+每一轮先让每个 branch 向前生成 K 个 interaction steps，
+然后对新的 partial trajectory 打 process score：
+</p>
+
+<div class="formula">
+s<sub>i</sub><sup>t</sup>
+=
+S<sub>φ</sub>(x, τ<sub>i</sub><sup>t</sup>)
+∈ [0,1]
+</div>
+
+
+<h3>4.3 每个中间节点会被分为三类</h3>
+
+<h4>Expansion</h4>
+
+<p>
+如果 partial trajectory 的 process score 很高，
+从这个状态生成多个 child branches：
+</p>
+
+<div class="formula">
+τ<sub>i</sub><sup>t,m</sup>
+~
+π<sub>θ</sub>(· | x, τ<sub>i</sub><sup>t</sup>)
+</div>
+
+<pre>
+              high-value state
+               /     |     \
+          branch1 branch2 branch3
+</pre>
+
+
+<h4>Survival</h4>
+
+<p>
+如果当前分支得分一般，但没有明显错误，
+不进行额外 branching，
+继续执行 K 步后再重新评价。
+</p>
+
+
+<h4>Pruning</h4>
+
+<p>
+如果：
+</p>
+
+<div class="formula">
+s<sub>i</sub><sup>t</sup>
+<
+median(s<sub>j</sub><sup>t</sup>) − α
+</div>
+
+<p>
+则该分支会提前停止。
+另外，如果连续 Θ 轮重复同一动作，
+也可以被认为是 degenerate branch 并停止。
+</p>
+
+
+<h3>4.4 被 Prune 的失败轨迹不会被删除</h3>
+
+<p>
+这是 PaTR 很值得借鉴的一点。
+被提前停止的 trajectory 仍然加入 completed trajectory set：
+</p>
+
+<pre>
+bad branch
+↓
+early stop
+↓
+保留
+↓
+作为 negative trajectory
+参与 group-relative RL
+</pre>
+
+<p>
+论文实验对比了：
+</p>
+
+<pre>
+Best-n：
+只保留表现好的 branch
+
+vs.
+
+Keep-All：
+连低质量 / 被 prune 的 branch 也保留
+</pre>
+
+<p>
+结果说明，失败 branch 仍然能够提供有价值的 reward contrast。
+也就是说：
+</p>
+
+<div class="highlight warning">
+失败 trajectory 不一定应该丢弃，
+它可以作为 relative learning 的 negative sample。
+</div>
+
+
+<h3>4.5 Process Scorer 怎么来？</h3>
+
+<p>
+PaTR 不强制使用一种 scorer，
+可以来自：
+</p>
+
+<ul>
+  <li>启发式任务进度；</li>
+  <li>已有 reward；</li>
+  <li>距离目标的估计；</li>
+  <li>预训练 Process Reward Model；</li>
+  <li>LLM Judge。</li>
+</ul>
+
+<p>
+对于你的运筹任务，可以用更可靠的结构化指标替代通用 LLM Judge，例如：
+</p>
+
+<ul>
+  <li>当前剩余资源；</li>
+  <li>容量 slack；</li>
+  <li>时间窗 slack；</li>
+  <li>remaining demand / remaining capacity；</li>
+  <li>best-achievable objective；</li>
+  <li>是否还存在 feasible completion。</li>
+</ul>
+
+
+<h3>4.6 Rollout Tree 的超参数</h3>
+
+<p>
+论文实验中会控制：
+</p>
+
+<ul>
+  <li><strong>K</strong>：多久对 partial trajectory 重新打一次分；</li>
+  <li><strong>M</strong>：一个高价值节点生成多少 child branches；</li>
+  <li><strong>top-k</strong>：哪些 active branches 获得扩展机会；</li>
+  <li><strong>α</strong>：Pruning margin。</li>
+</ul>
+
+<p>
+论文在部分 ablation 中使用了类似：
+</p>
+
+<pre>
+branch factor M = 2
+scoring interval K = 13
+top branches = 2
+</pre>
+
+<p>
+并发现 branch factor 并非越大越好。
+branch 太多会削弱 process scorer 对计算预算的聚焦作用。
+</p>
+
+
+<div class="highlight good">
+<strong>对当前项目尤其重要：</strong><br><br>
+
+你现在想到的是：
+
+关键状态 s180
+→ 完整 rollout 10 次
+→ 每条继续跑剩余 150 轮。
+
+<br><br>
+
+如果这很贵，可以改成 PaTR 式：
+
+s180
+→ 每个 branch 先跑 10~20 步
+→ 评估 partial trajectory
+→ 高潜力 branch 再分叉
+→ 普通 branch 继续
+→ 明显差的 branch 提前停止。
+
+<br><br>
+
+这样可以显著减少在已经明显走坏的轨迹上继续消耗数百万 Token。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>5. AgentRx：如何在长失败轨迹中定位 Critical Failure Step</h2>
+
+<div class="meta">
+论文 / 项目：
+<a href="https://www.microsoft.com/en-us/research/publication/agentrx-diagnosing-ai-agent-failures-from-execution-trajectories/" target="_blank">
+AgentRx: Diagnosing AI Agent Failures from Execution Trajectories
+</a>
+</div>
+
+
+<h3>5.1 它关注的不是最终报错，而是第一个不可恢复错误</h3>
+
+<p>
+AgentRx 定义 Critical Failure Step：
+</p>
+
+<div class="highlight danger">
+一条失败 trajectory 中，
+第一个使后续任务无法恢复到成功状态的关键错误步骤。
+</div>
+
+<p>
+例如：
+</p>
+
+<pre>
+step 70    正常
+step 71    正常
+step 72    正常
+step 73    ← Critical Failure Step
+step 74
+step 75
+...
+step 190   ← 最终失败显现
+</pre>
+
+<p>
+因此最终失败表现的位置不一定是真正原因。
+</p>
+
+
+<h3>5.2 Trajectory Normalization</h3>
+
+<p>
+不同 Agent 框架日志格式差异很大，
+AgentRx 首先将：
+</p>
+
+<pre>
+LLM message
+tool call
+tool output
+agent action
+system event
+</pre>
+
+<p>
+统一转换为标准化的 intermediate representation。
+</p>
+
+
+<h3>5.3 Constraint Synthesis</h3>
+
+<p>
+AgentRx 根据：
+</p>
+
+<pre>
+Tool Schema
++
+Domain Policy
+</pre>
+
+<p>
+自动产生一组可以检查轨迹行为是否正确的 constraints。
+例如：
+</p>
+
+<ul>
+  <li>调用某 API 前必须满足某前置条件；</li>
+  <li>参数必须符合 schema；</li>
+  <li>只有工具真正返回某结果，Agent 才能声称该事实；</li>
+  <li>某些破坏性操作必须获得确认。</li>
+</ul>
+
+
+<h3>5.4 Guarded Step-wise Evaluation</h3>
+
+<p>
+并不是每个 constraint 每一步都检查。
+每个 constraint 都有适用条件，
+只有满足 guard condition 时才执行验证。
+最终形成类似：
+</p>
+
+<pre>
+step 12:
+constraint A → pass
+
+step 13:
+constraint B → pass
+
+step 14:
+constraint C → violation
+evidence: ...
+
+step 15:
+constraint D → violation
+...
+</pre>
+
+
+<h3>5.5 最终 Critical Step 如何判断？</h3>
+
+<p>
+LLM Judge 不直接从零阅读整个 raw trajectory，
+而是结合：
+</p>
+
+<pre>
+标准化 trajectory
++
+constraint violation log
++
+failure taxonomy
+</pre>
+
+<p>
+定位最早、最具有因果意义的 failure step。
+</p>
+
+
+<h3>5.6 Benchmark</h3>
+
+<p>
+论文构建了人工标注失败轨迹集，
+其中包含不同交互环境，
+并人工给出：
+</p>
+
+<ul>
+  <li>Critical Failure Step；</li>
+  <li>Failure Category；</li>
+  <li>对应根因。</li>
+</ul>
+
+<p>
+Microsoft 报告，相对于直接 prompting baseline，
+AgentRx 在 critical step localization 和 root-cause attribution 上均取得明显提升。
+</p>
+
+
+<div class="highlight good">
+<strong>你的运筹场景可以比 AgentRx 更简单、更可靠：</strong><br><br>
+
+如果你能够从中间 state 调用 solver，
+可以直接测试：
+
+F(s_t) =
+是否还存在 feasible completion
+
+以及：
+
+V*(s_t) =
+从当前 state 出发仍然能够取得的最好 objective
+
+<br><br>
+
+那么你可以用真实运筹约束和 solver
+直接定位 feasibility cliff / quality cliff，
+不一定需要依赖 LLM Judge。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>6. DAPO：用当前模型的 Rollout 分布定义“经验难度”</h2>
+
+<div class="meta">
+论文：
+<a href="https://arxiv.org/abs/2503.14476" target="_blank">
+DAPO: An Open-Source LLM Reinforcement Learning System at Scale
+</a>
+</div>
+
+
+<h3>6.1 Dynamic Sampling 的出发点</h3>
+
+<p>
+DAPO 发现，对于 group-relative RL，
+如果同一 prompt 下的 G 个 rollout 全部正确：
+</p>
+
+<pre>
+1 1 1 1 1 1 1 1
+</pre>
+
+<p>
+或者全部错误：
+</p>
+
+<pre>
+0 0 0 0 0 0 0 0
+</pre>
+
+<p>
+组内 reward 都没有差异，
+因此 advantage 信号非常弱甚至退化。
+</p>
+
+
+<h3>6.2 它实际怎么做？</h3>
+
+<p>
+DAPO 会持续 oversample prompts，
+直到获得足够多满足：
+</p>
+
+<div class="formula">
+0
+<
+#{correct responses}
+<
+G
+</div>
+
+<p>
+的 rollout groups。
+也就是说：
+</p>
+
+<pre>
+全会的
+→ 暂时没必要重点训练
+
+全不会的
+→ 当前模型没有区分信号
+
+部分会、部分不会的
+→ 当前最有学习价值
+</pre>
+
+
+<h3>6.3 这本质上就是 Model-Aware Difficulty</h3>
+
+<p>
+一个任务是否困难，不是它的固定属性，
+而取决于当前 policy。
+</p>
+
+<p>
+迁移到你的场景：
+</p>
+
+<div class="formula">
+s<sub>t</sub>
+→
+{τ₁, τ₂, ..., τ<sub>K</sub>}
+</div>
+
+<p>
+可以定义：
+</p>
+
+<div class="formula">
+p<sub>quality</sub>(s)
+=
+# {R ≥ R<sub>target</sub>}
+/
+K
+</div>
+
+<p>
+例如：
+</p>
+
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>10 次 Rollout</th>
+<th>当前经验难度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>s1</td>
+<td>10 次全部高分</td>
+<td>太容易</td>
+</tr>
+<tr>
+<td>s2</td>
+<td>8 次高分</td>
+<td>较容易</td>
+</tr>
+<tr>
+<td>s3</td>
+<td>5 次高分</td>
+<td>Learning Frontier</td>
+</tr>
+<tr>
+<td>s4</td>
+<td>2 次高分</td>
+<td>困难但仍有学习信号</td>
+</tr>
+<tr>
+<td>s5</td>
+<td>0 次高分</td>
+<td>当前可能过难</td>
+</tr>
+</tbody>
+</table>
+
+
+<h3>6.4 对 Curriculum 的直接意义</h3>
+
+<p>
+因此不建议简单：
+</p>
+
+<pre>
+Easy
+→ Medium
+→ Hard
+→ Very Hard
+</pre>
+
+<p>
+更合理的是：
+</p>
+
+<pre>
+当前模型大量成功
+→ 降低采样
+
+当前模型成功率中等
+→ 提高采样
+
+当前模型完全失败
+→ 暂时降低采样
+→ 等模型能力提高后再加入
+</pre>
+
+<div class="highlight">
+<strong>
+Curriculum 难度最好是 Policy-Dependent 的，
+而不是一次性静态标注。
+</strong>
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>7. SPEAR：高质量轨迹进入 Replay Buffer，持续重复利用</h2>
+
+<div class="meta">
+论文：
+<a href="https://openreview.net/" target="_blank">
+Learn the Ropes, Then Trust the Wins: Self-imitation with Progressive Exploration for Agentic Reinforcement Learning
+</a>
+</div>
+
+
+<h3>7.1 为什么需要 Replay Buffer？</h3>
+
+<p>
+在稀疏 reward 的 Agent 环境里，
+模型偶然发现一条成功轨迹可能非常昂贵。
+如果：
+</p>
+
+<pre>
+成功 trajectory
+→ 用一次做 gradient update
+→ 直接丢弃
+</pre>
+
+<p>
+会浪费很多已经得到的高价值经验。
+因此 SPEAR 保存高价值 trajectory。
+</p>
+
+
+<h3>7.2 Buffer 中保存什么？</h3>
+
+<p>
+可以抽象为：
+</p>
+
+<div class="formula">
+D =
+{(τ<sub>j</sub>, R<sub>j</sub>, Â<sub>j</sub>)}
+</div>
+
+<p>
+也就是轨迹、reward 和 advantage。
+尤其重点保留 positive-advantage trajectory：
+</p>
+
+<div class="formula">
+Â<sub>j</sub> > 0
+</div>
+
+
+<h3>7.3 为什么不能一开始就大量 Replay？</h3>
+
+<p>
+如果训练早期模型偶然产生少量成功轨迹，
+然后反复 self-imitation：
+</p>
+
+<pre>
+少量成功经验
+↓
+大量 replay
+↓
+policy entropy 快速下降
+↓
+过拟合少数行为模式
+↓
+模型停止探索其他可能策略
+</pre>
+
+<p>
+因此 SPEAR 使用 progressive curriculum。
+</p>
+
+
+<h3>7.4 Early Stage 与 Late Stage 不同</h3>
+
+<p>
+早期更强调 exploration：
+</p>
+
+<pre>
+鼓励工具调用
+鼓励交互
+鼓励发现新路径
+
+
+<p>
+后期逐渐提高：
+</p>
+
+<pre>
+successful trajectory replay
+self-imitation
+strategic exploitation
+</pre>
+
+
+<h3>7.5 历史轨迹价值会衰减</h3>
+
+<p>
+一个旧 trajectory 在模型早期可能很优秀，
+但模型变强以后，它可能已经变成普通水平。
+因此 SPEAR 会参考近期的 baseline 对历史 experience 重新评价。
+可以理解为：
+</p>
+
+<div class="formula">
+Ã<sub>i</sub>
+=
+R<sub>i</sub>
+−
+CurrentBaseline
+</div>
+
+<p>
+只有相对于当前模型仍然具有价值的旧轨迹，
+才值得继续 replay。
+</p>
+
+
+<div class="highlight good">
+<strong>对当前项目：</strong><br><br>
+
+如果某个关键 state rollout 很多次后，
+终于产生一条高质量纠偏轨迹：
+
+s180 → ... → score 96
+
+这条轨迹不应该只用于一次训练。
+
+可以建立：
+
+Corrective Trajectory Buffer
+
+保存：
+
+source_state
+trajectory
+score
+improvement
+difficulty
+policy_version
+
+并随着模型能力变化，
+重新判断它是否仍值得 replay。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>8. AgentGym-RL / ScalingInter-RL：最直接的 Horizon Curriculum</h2>
+
+<p>
+这类方法不分析每条 trajectory 的细粒度质量，
+而是直接控制允许交互多少轮。
+例如：
+</p>
+
+<pre>
+训练前期：
+最多 10 turns
+
+↓
+
+中期：
+最多 20 turns
+
+↓
+
+后期：
+最多 30 turns
+</pre>
+
+<p>
+核心思想是：
+</p>
+
+<blockquote>
+模型先掌握短 Horizon 的局部决策，
+再逐渐学习更长 Horizon 的规划和信用分配。
+</blockquote>
+
+
+<div class="highlight good">
+<strong>你可以把它和 CRPS 合并：</strong><br><br>
+
+不是简单：
+
+10 turns → 20 turns → 30 turns
+
+而是：
+
+关键状态附近
+→ remaining horizon = 20
+
+更早的关键状态
+→ remaining horizon = 50
+
+更早的位置
+→ remaining horizon = 100+
+
+最后
+→ 完整任务。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>9. 对当前运筹项目的推荐方法框架</h2>
+
+<p>
+综合这些论文，可以形成一个比较清晰的方法：
+</p>
+
+<div class="flow">
+已有失败 / 低分长轨迹
+             │
+             ▼
+       结构化轨迹状态
+             │
+             ▼
+   粗粒度保存 Checkpoints
+             │
+             ▼
+  估计 Feasibility / Quality
+             │
+       ┌─────┴─────┐
+       │           │
+       ▼           ▼
+Feasibility      Quality
+   Cliff          Cliff
+       │           │
+       └─────┬─────┘
+             ▼
+      Candidate States
+             │
+             ▼
+  局部进一步确认 Critical States
+             │
+             ▼
+    从每个 State 多次 Rollout
+          /   |   |   \
+        τ1   τ2  τ3   τ4
+        ↓    ↓   ↓    ↓
+       94   82  55   FAIL
+             │
+             ▼
+      统计 Rollout Distribution
+             │
+       ┌─────┴──────────┐
+       ▼                ▼
+ Criticality          Difficulty
+值不值得训练？       对当前模型多难？
+       │                │
+       ▼                ▼
+筛选数据            Curriculum
+       │
+       ▼
+SFT / Preference / RL / Replay
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>10. Critical State 到底怎么定义？</h2>
+
+<p>
+建议不要把“关键节点”定义成主观判断，
+而定义成：
+</p>
+
+<div class="highlight">
+<strong>
+从该状态附近改变决策，
+会显著改变最终可行性或最终 objective 的状态。
+</strong>
+</div>
+
+
+<h3>10.1 硬失败：Feasibility Cliff</h3>
+
+<p>
+定义：
+</p>
+
+<div class="formula">
+F(s<sub>t</sub>) =
+1，如果从 s<sub>t</sub> 仍存在 feasible completion；
+否则为 0。
+</div>
+
+<p>
+如果：
+</p>
+
+<pre>
+s180 → feasible
+s190 → feasible
+s200 → feasible
+s210 → infeasible
+</pre>
+
+<p>
+那么 200～210 是关键区间。
+进一步可以二分搜索：
+</p>
+
+<pre>
+s205 ?
+s207 ?
+s208 ?
+</pre>
+
+<p>
+找到：
+</p>
+
+<pre>
+F(s207) = 1
+F(s208) = 0
+</pre>
+
+<p>
+则：
+</p>
+
+<pre>
+s207
+→ 原 action
+→ s208
+→ 不可恢复
+</pre>
+
+<p>
+这里真正适合当 rollout 起点的是<strong>s207</strong>，
+而不是已经硬失败的 s208。
+</p>
+
+
+<h3>10.2 低分成功：Quality Cliff</h3>
+
+<p>
+对每个中间 state 求：
+</p>
+
+<div class="formula">
+V*(s<sub>t</sub>)
+=
+从当前 state 出发仍然能够达到的最好 objective
+</div>
+
+<p>
+如果：
+</p>
+
+<pre>
+round 100: V* = 96
+round 130: V* = 95
+round 150: V* = 94
+round 160: V* = 79
+round 170: V* = 77
+</pre>
+
+<p>
+则 150～160 是明显的 quality degradation region。
+可以定义：
+</p>
+
+<div class="formula">
+Δ<sub>t</sub>
+=
+V*(s<sub>t</sub>) − V*(s<sub>t+1</sub>)
+</div>
+
+<p>
+Δ<sub>t</sub> 突然增大时，
+说明该 action 消耗了大量未来优化潜力。
+</p>
+
+
+<h3>10.3 Counterfactual Improvement</h3>
+
+<p>
+对候选 state s<sub>t</sub> 重新 rollout：
+</p>
+
+<pre>
+原 continuation：
+score = 55
+
+从 s_t 重新 rollout：
+best score = 92
+</pre>
+
+<p>
+可以定义：
+</p>
+
+<div class="formula">
+Improvement(s)
+=
+R<sub>best reroll</sub>
+−
+R<sub>original continuation</sub>
+</div>
+
+<p>
+Improvement 很大的 state，
+意味着：
+</p>
+
+<blockquote>
+原 trajectory 从这里以后存在很大的纠偏空间。
+</blockquote>
+</section>
+
+
+
+<section class="card">
+<h2>11. Criticality 与 Difficulty 必须分开</h2>
+
+<h3>11.1 Criticality：这个 State 是否值得生产训练数据？</h3>
+
+<p>
+例如：
+</p>
+
+<div class="formula">
+C(s)
+=
+R<sub>best reroll</sub>
+−
+R<sub>original</sub>
+</div>
+
+<pre>
+原 trajectory：55
+重新 rollout 最好：94
+
+Criticality / Improvement = 39
+</pre>
+
+<p>
+说明从这个 state 开始重新训练很有价值。
+</p>
+
+
+<h3>11.2 Difficulty：当前模型从这里开始有多难？</h3>
+
+<p>
+可以定义目标质量阈值 R<sub>target</sub>：
+</p>
+
+<div class="formula">
+D(s)
+=
+1
+−
+P(R ≥ R<sub>target</sub> | s)
+</div>
+
+<p>
+例如：
+</p>
+
+<pre>
+s1：
+10 次 rollout
+8 次 ≥ 90
+→ easy
+
+s2：
+10 次 rollout
+5 次 ≥ 90
+→ medium
+
+s3：
+10 次 rollout
+2 次 ≥ 90
+→ hard
+
+s4：
+10 次 rollout
+0 次 ≥ 90
+→ currently too hard
+</pre>
+
+
+<div class="highlight">
+<strong>
+Criticality 决定：
+这个节点值不值得拿来生产训练数据。
+
+Difficulty 决定：
+这些训练数据应该放在 Curriculum 的哪个阶段。
+</strong>
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>12. 从 Critical State 具体怎么生产训练轨迹？</h2>
+
+<p>
+假设已经找到：
+</p>
+
+<pre>
+critical state = s180
+</pre>
+
+<p>
+先保存完整可恢复环境状态：
+</p>
+
+<ul>
+  <li>已经完成的任务；</li>
+  <li>剩余任务；</li>
+  <li>资源使用情况；</li>
+  <li>约束状态；</li>
+  <li>当前 objective；</li>
+  <li>任何后续求解需要的环境信息。</li>
+</ul>
+
+<p>
+然后从相同 state 多次 rollout：
+</p>
+
+<pre>
+s180
+├── rollout 1 → score 94
+├── rollout 2 → score 88
+├── rollout 3 → score 71
+├── rollout 4 → score 54
+├── rollout 5 → fail
+└── rollout 6 → score 91
+</pre>
+
+<p>
+每条 trajectory 至少保存：
+</p>
+
+<pre>
+source_state_id
+source_trajectory_id
+start_step
+
+state-action-observation sequence
+
+final_feasible
+final_score
+termination_reason
+
+trajectory_length
+generator_policy_version
+random_seed
+</pre>
+
+<p>
+这样同一个 state 就形成了一组具有质量差异的数据。
+</p>
+</section>
+
+
+
+<section class="card">
+<h2>13. Rollout 产生的数据最终怎么训练模型？</h2>
+
+<h3>13.1 SFT</h3>
+
+<p>
+选择最高质量 trajectory：
+</p>
+
+<pre>
+Input:
+state s180
+
+Target:
+94 分 trajectory
+</pre>
+
+<p>
+如果 trajectory 太长，
+可以只使用：
+</p>
+
+<pre>
+state
+→ 最优下一步 action
+</pre>
+
+<p>或者：</p>
+
+<pre>
+state
+→ 未来 5~20 步高质量局部 trajectory
+</pre>
+
+
+<h3>13.2 Preference / DPO</h3>
+
+<p>
+同一个 state 天然可以形成：
+</p>
+
+<pre>
+Prompt:
+state s180
+
+Chosen:
+94 分 continuation
+
+Rejected:
+54 分 continuation
+</pre>
+
+<p>
+即：
+</p>
+
+<div class="formula">
+(s<sub>t</sub>, τ⁺, τ⁻)
+</div>
+
+<p>
+这种数据尤其适合运筹问题，
+因为很多状态不一定只有唯一正确 solution，
+更适合学习“哪个方案相对更好”。
+</p>
+
+
+<h3>13.3 Process Reward / Value Data</h3>
+
+<p>
+将：
+</p>
+
+<pre>
+state
+action
+downstream rollout score
+</pre>
+
+<p>
+作为监督：
+</p>
+
+<div class="formula">
+Q(s<sub>t</sub>, a<sub>t</sub>)
+≈
+E[R | s<sub>t</sub>, a<sub>t</sub>]
+</div>
+
+<p>
+可以训练模型预测某个动作对未来最终结果的长期影响。
+</p>
+
+
+<h3>13.4 RL / GRPO Start State</h3>
+
+<p>
+中间状态本身也可以不固化成答案，
+而作为训练环境的起点：
+</p>
+
+<pre>
+reset environment to s180
+↓
+当前 policy rollout K 条
+↓
+最终 objective 作为 reward
+↓
+组内计算 advantage
+↓
+更新 policy
+</pre>
+
+<p>
+这与 CRPS 的核心思想最接近。
+</p>
+</section>
+
+
+
+<section class="card">
+<h2>14. Curriculum 应该怎么组织？</h2>
+
+<p>
+第一版可以使用：
+</p>
+
+<div class="formula">
+p<sub>quality</sub>(s)
+=
+P(R ≥ R<sub>target</sub> | s)
+</div>
+
+<p>
+作为状态难度估计。
+</p>
+
+<table>
+<thead>
+<tr>
+<th>高质量 Rollout 比例</th>
+<th>含义</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>90%～100%</td>
+<td>已经基本掌握</td>
+<td>降低采样比例</td>
+</tr>
+<tr>
+<td>60%～90%</td>
+<td>较容易</td>
+<td>可用于 Curriculum 早期</td>
+</tr>
+<tr>
+<td>30%～60%</td>
+<td>Learning Frontier</td>
+<td>重点训练</td>
+</tr>
+<tr>
+<td>5%～30%</td>
+<td>困难但仍有学习信号</td>
+<td>模型提升后逐渐增加</td>
+</tr>
+<tr>
+<td>0%～5%</td>
+<td>当前可能过难</td>
+<td>暂时降低采样</td>
+</tr>
+</tbody>
+</table>
+
+
+<div class="highlight warning">
+<strong>
+Curriculum 最重要的不是“从最低难度机械排到最高难度”，
+而是持续把训练预算放在当前模型能力边界附近。
+</strong>
+</div>
+
+<p>
+随着模型能力提高，需要重新 rollout，
+因为：
+</p>
+
+<pre>
+原来 success rate = 20%
+↓
+模型变强
+↓
+重新 rollout
+↓
+success rate = 70%
+</pre>
+
+<p>
+这个 state 的难度标签已经发生变化。
+因此 difficulty 应该是动态的。
+</p>
+</section>
+
+
+
+<section class="card">
+<h2>15. 针对当前场景的第一版实验设计</h2>
+
+<p>
+为了避免第一版工程过重，可以先做最小闭环。
+</p>
+
+<pre>
+Step 1
+从现有失败 / 低分长轨迹中
+人工 + 规则选择 20~50 个 candidate states
+
+
+Step 2
+每个 state 当前模型 rollout K 次
+
+例如：
+K = 8
+
+
+Step 3
+保存：
+
+final feasibility
+final score
+trajectory length
+termination reason
+
+
+Step 4
+统计：
+
+success rate
+high-quality rate
+mean score
+best score
+score variance
+improvement over original trajectory
+
+
+Step 5
+过滤：
+
+没有 improvement 的 state
+→ 降低优先级
+
+100% 高分的 state
+→ 太简单，降低采样
+
+部分高分、部分低分的 state
+→ 核心训练状态
+
+0% 高分的 state
+→ 当前过难，暂时降低采样
+
+
+Step 6
+生成训练数据：
+
+best trajectory
+→ SFT
+
+best vs bad
+→ Preference
+
+state checkpoint
+→ RL
+
+
+Step 7
+模型训练一轮以后重新 rollout
+
+重新估计：
+difficulty
+success rate
+score distribution
+
+然后更新 Curriculum
+</pre>
+</section>
+
+
+
+<section class="card">
+<h2>16. 如果 Rollout 成本特别高：推荐使用 Tree Rollout</h2>
+
+<p>
+如果：
+</p>
+
+<pre>
+一个 critical state
+→ 剩余 200 轮
+→ 每条 continuation 数百万 Token
+</pre>
+
+<p>
+那么每个 state 完整 rollout 8～16 次可能太贵。
+可以借鉴 PaTR：
+</p>
+
+<pre>
+critical state
+↓
+生成 4 个 branch
+↓
+每个先跑 10~20 轮
+↓
+计算 partial quality
+
+高潜力：
+→ 继续
+→ 甚至继续 branch
+
+中等：
+→ 保留继续
+
+明显差：
+→ early stop
+→ 保存为 negative
+</pre>
+
+<p>
+这样不必让明显已经变差的 trajectory 继续跑完全部剩余 Horizon。
+</p>
+</section>
+
+
+
+<section class="card">
+<h2>17. 与已有方法的差异</h2>
+
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>State 来源</th>
+<th>State 选择标准</th>
+<th>Rollout 的主要目的</th>
+</tr>
+</thead>
+<tbody>
+
+<tr>
+<td>CRPS</td>
+<td>成功 trajectory</td>
+<td>Suffix length + 当前成功率</td>
+<td>形成从短 Horizon 到长 Horizon 的 Curriculum</td>
+</tr>
+
+<tr>
+<td>IPR</td>
+<td>Expert trajectory</td>
+<td>沿 expert states 逐步探索</td>
+<td>估计 step reward，产生 contrastive pairs</td>
+</tr>
+
+<tr>
+<td>PaTR</td>
+<td>当前正在生成的 partial trajectory</td>
+<td>Process score</td>
+<td>将 rollout budget 分配到 promising branches</td>
+</tr>
+
+<tr>
+<td>AgentRx</td>
+<td>Failed trajectory</td>
+<td>Constraint violation + Judge</td>
+<td>定位 first unrecoverable failure</td>
+</tr>
+
+<tr>
+<td>DAPO</td>
+<td>Prompt / task</td>
+<td>当前 rollout group 是否部分成功</td>
+<td>只训练当前具有非零相对优势信号的样本</td>
+</tr>
+
+<tr>
+<td>当前设想</td>
+<td><strong>失败 / 低分运筹 trajectory</strong></td>
+<td>
+<strong>
+Feasibility cliff /
+Quality cliff /
+Reroll improvement potential
+</strong>
+</td>
+<td>
+<strong>
+同时生产 corrective trajectory，
+估计 state difficulty，
+再构建 Curriculum
+</strong>
+</td>
+</tr>
+
+</tbody>
+</table>
+</section>
+
+
+
+<section class="card">
+<h2>18. 当前方案可概括为什么方法？</h2>
+
+<div class="highlight good">
+可以暂时概括为：
+
+<br><br>
+
+<strong>
+Critical-State-Guided Branching Rollout
+for Curriculum Data Construction
+</strong>
+
+<br><br>
+
+核心过程：
+
+<br><br>
+
+失败 / 低分超长 trajectory
+→ 识别高影响、仍可恢复的 critical states
+→ 从这些 state 进行 branching rollout
+→ 用 rollout distribution 估计 policy-dependent difficulty
+→ 将高低质量 continuation 转成监督 / preference / RL 数据
+→ 根据模型能力动态更新 Curriculum。
+</div>
+</section>
+
+
+
+<section class="card">
+<h2>19. 推荐精读顺序</h2>
+
+<table>
+<thead>
+<tr>
+<th>优先级</th>
+<th>论文</th>
+<th>重点看什么</th>
+</tr>
+</thead>
+<tbody>
+
+<tr>
+<td>1</td>
+<td>
+<a href="https://aclanthology.org/2026.findings-acl.680/" target="_blank">
+CRPS
+</a>
+</td>
+<td>
+Success Buffer、Suffix Replay、Dynamic k、Replay Success Rate、Exploration-Replay Mixture
+</td>
+</tr>
+
+<tr>
+<td>2</td>
+<td>
+<a href="https://aclanthology.org/2024.emnlp-main.93/" target="_blank">
+Watch Every Step / IPR
+</a>
+</td>
+<td>
+Monte Carlo Step Reward、Step-wise Trajectory Construction、Step-DPO、Outcome-DPO
+</td>
+</tr>
+
+<tr>
+<td>3</td>
+<td>
+<a href="https://arxiv.org/abs/2607.15610" target="_blank">
+PaTR
+</a>
+</td>
+<td>
+Tree Rollout、Expansion / Survival / Pruning、Process Scorer、Branching Budget
+</td>
+</tr>
+
+<tr>
+<td>4</td>
+<td>
+<a href="https://arxiv.org/abs/2503.14476" target="_blank">
+DAPO
+</a>
+</td>
+<td>
+Dynamic Sampling、为什么全成功 / 全失败 Group 没有训练价值
+</td>
+</tr>
+
+<tr>
+<td>5</td>
+<td>
+<a href="https://www.microsoft.com/en-us/research/publication/agentrx-diagnosing-ai-agent-failures-from-execution-trajectories/" target="_blank">
+AgentRx
+</a>
+</td>
+<td>
+Trajectory Normalization、Constraint Synthesis、Guarded Evaluation、Critical Failure Step
+</td>
+</tr>
+
+<tr>
+<td>6</td>
+<td>SPEAR</td>
+<td>
+Replay Buffer、Positive-Advantage Trajectory、Progressive Self-Imitation、旧经验重估
+</td>
+</tr>
+
+</tbody>
+</table>
+</section>
+
+
+
+<section class="card">
+<h2>20. 最终建议</h2>
+
+<p>
+结合当前已有超长失败 / 低分轨迹，以及“可以从中间状态重新求解”这一非常有利的条件，
+比较推荐的第一版方法是：
+</p>
+
+<div class="flow">
+1. 轨迹压缩成结构化 state-action 序列
+
+2. 每隔若干轮建立 checkpoint
+
+3. 用 solver / constraint checker 估计：
+   - 是否仍可行
+   - best-achievable objective
+
+4. 找：
+   - Feasibility Cliff
+   - Quality Cliff
+
+5. 在这些区域局部加密搜索
+   得到少量 Critical States
+
+6. 从每个 Critical State rollout K 次
+
+7. 记录：
+   - success rate
+   - high-quality rate
+   - mean score
+   - best score
+   - variance
+   - improvement
+
+8. Criticality：
+   判断该 state 是否值得生产数据
+
+9. Difficulty：
+   判断该 state 对当前 policy 有多难
+
+10. 数据转换：
+    - Best trajectory → SFT
+    - Best vs Bad → Preference / DPO
+    - state-action-score → Process / Value Model
+    - checkpoint → RL Start State
+
+11. Curriculum：
+    优先训练当前模型“部分会、部分不会”的 state
+
+12. 模型能力提升后重新 rollout，
+    动态更新 Difficulty 与采样比例
+</div>
+
+<div class="highlight good">
+<strong>最核心的逻辑可以压缩为一句话：</strong><br><br>
+
+不是直接把失败长轨迹拿去训练，
+而是把失败轨迹当作“寻找高价值训练状态的矿藏”；
+从其中找到仍有纠偏空间的关键状态，
+再通过 branching rollout 生成真正具有监督价值和难度信息的新轨迹。
+</div>
+</section>
+
+
+<div class="footer">
+Long-Horizon Trajectory Data Construction & Curriculum Learning Research Report
+</div>
+
+</div>
+</body>
+</html>
