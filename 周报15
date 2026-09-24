@@ -1,0 +1,22 @@
+本周完成长时序轨迹数据构建方法调研，并结合运筹场景形成基于语义切分、checkpoint 分支和 rollout 估值的初步 SFT 数据构建方案。
+
+### 一、本周工作进展
+
+1. 围绕长时序 Agent / 运筹决策任务开展轨迹训练数据构建调研，重点关注 Teacher 生成的成功、失败及低分轨迹如何经过筛选、切分、修复、branch 和估值，转化为适合 Student 学习的 SFT / Preference 等训练数据。
+
+2. 系统梳理 SmartAD、PROOF-Gen、P-ALIGN、HPL、CSO、Hindsight 等近期方法，重点分析 Student-aware 轨迹选择、失败轨迹纠偏、长轨迹切分、中间状态 branch 及 downstream outcome verification 等思路。其中深入研读 HPL，梳理其 trajectory / group / step 三层监督、Semantic Segmentation、rollout 估值及 curriculum 设计。
+
+3. 结合现有运筹环境设计初步落地流程：**轨迹筛选 → 基线跑批 → 语义/算子级切分 → 候选或负样本采样 → rollout 估值 → 分桶 → 训练 → 回归门禁**。考虑将 repair、insertion、relocation、局部搜索等完整决策过程作为 group，并利用 checkpoint 从相同中间状态生成不同 continuation。
+
+4. 针对当前以 SFT 为主的目标，对 HPL/P-ALIGN 思路进行适配：计划利用 rollout 结果筛选高质量 segment，而非直接进行 DPO；同时探索 Student 偏离状态下的 Teacher corrective continuation，以提升模型在长时序执行中的局部决策和错误恢复能力。
+
+### 二、遇到的问题及解决办法
+
+**问题1：长轨迹整体监督过粗，而单步监督又容易割裂完整决策过程。**  
+**解决办法：** 引入语义完整的 action group，将一次 repair、insertion、路径调整等多步行为作为基本数据单元，在 full trajectory 和 single step 之间取得更合理的训练粒度。
+
+**问题2：局部 action / segment 的即时表现不能准确反映长期效果，同时全量 rollout 成本较高。**  
+**解决办法：** 结合 checkpoint 进行 downstream rollout 估值，并采用“局部规则或指标初筛 → 必要时完整 rollout”的分层评估方式，只对高价值或难判断的中间状态投入更多计算。
+
+**问题3：HPL 原方法主要面向 Preference / DPO，与当前 SFT 目标存在差异。**  
+**解决办法：** 保留其语义切分、候选分支和 rollout 估值的数据构建思想，将正负样本比较转化为高质量 continuation 筛选，最终形成 `(state/context, high-quality segment)` 形式的 SFT 数据。
